@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Glow/Orb effects in background -->
+    <path
+        android:fillColor="#33FFD54F"
+        android:pathData="M54,54m-35,0a35,35 0,1 1,70 0a35,35 0,1 1,-70 0" />
+
+    <!-- Tilted Smartphone -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-15">
+        <!-- Phone Frame -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M38,22h32c3,0 5.5,2.5 5.5,5.5v53c0,3 -2.5,5.5 -5.5,5.5h-32c-3,0 -5.5,-2.5 -5.5,-5.5v-53c0,-3 2.5,-5.5 5.5,-5.5z" />
+        <!-- Screen -->
+        <path
+            android:fillColor="#81D4FA"
+            android:pathData="M35,28h38v45h-38z" />
+        <!-- Inner Glow on Screen -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M35,28L73,28L35,60Z"
+            android:fillAlpha="0.3" />
+    </group>
+
+    <!-- Shopping Bag (Orange/Yellow) -->
+    <group
+        android:translateX="48"
+        android:translateY="42">
+        <!-- Bag Body -->
+        <path
+            android:fillColor="#FF9800"
+            android:pathData="M2,6h18l-2,16h-14z" />
+        <!-- Bag Handle -->
+        <path
+            android:pathData="M7,6c0,0 0,-4 4,-4s4,4 4,4"
+            android:strokeColor="#E65100"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round" />
+        <!-- Cart Icon on Bag -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M7,12h8M7,15h6"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1"
+            android:strokeLineCap="round" />
+    </group>
+
+    <!-- Upward Arrow -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M30,45c0,0 5,-10 15,-12l-3,-3l8,2l-2,8l-3,-3c-8,2 -12,8 -12,8z" />
+
+    <!-- Sparkles -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M85,40l1,1l1,-1l-1,-1z M25,70l1.5,1.5l1.5,-1.5l-1.5,-1.5z M80,75l1,1l1,-1l-1,-1z" />
+
+</vector>
