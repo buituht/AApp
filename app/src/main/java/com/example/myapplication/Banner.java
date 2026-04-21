@@ -12,7 +12,7 @@ public class Banner implements Serializable {
         this.id = id;
         this.imageUrl = imageUrl;
     }
-    
+
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
