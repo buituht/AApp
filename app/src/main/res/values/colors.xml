@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="purple_main">#D4AF37</color> <!-- Metallic Gold - Sang trọng hơn -->
+    <color name="purple_light">#FDF5E6</color> <!-- Old Lace/Cream - Nhẹ nhàng hơn -->
+    <color name="purple_dark">#1A1A1A</color>  <!-- Deep Black/Gray - Tạo độ sâu -->
+    <color name="gray_text">#757575</color>
+    <color name="input_border">#E0E0E0</color>
+    <color name="red">#B22222</color> <!-- Fire Brick - Đỏ sậm sang trọng hơn -->
+</resources>
