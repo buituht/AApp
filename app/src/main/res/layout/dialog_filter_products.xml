@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Bộ lọc sản phẩm"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@color/black" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Khoảng giá"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <EditText
+            android:id="@+id/et_min_price"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Từ (VNĐ)"
+            android:inputType="number" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="8dp"
+            android:text="-" />
+
+        <EditText
+            android:id="@+id/et_max_price"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Đến (VNĐ)"
+            android:inputType="number" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Đánh giá"
+        android:textStyle="bold" />
+
+    <Spinner
+        android:id="@+id/sp_rating_filter"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Sắp xếp theo"
+        android:textStyle="bold" />
+
+    <RadioGroup
+        android:id="@+id/rg_sort_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp">
+        <RadioButton
+            android:id="@+id/rb_sort_default"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Mặc định"
+            android:checked="true" />
+        <RadioButton
+            android:id="@+id/rb_sort_best_seller"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bán chạy nhất" />
+        <RadioButton
+            android:id="@+id/rb_sort_price_asc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Giá tăng dần" />
+        <RadioButton
+            android:id="@+id/rb_sort_price_desc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Giá giảm dần" />
+    </RadioGroup>
+
+</LinearLayout>
