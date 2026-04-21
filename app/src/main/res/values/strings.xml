@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">AShop</string>
+    <string name="username_hint">Tên đăng nhập</string>
+    <string name="password_hint">Mật khẩu</string>
+    <string name="login_button_text">Đăng nhập</string>
+    <string name="login_title">Trang Đăng Nhập</string>
+    <string name="login_remember">Ghi nhớ đăng nhập</string>
+    <string name="register_title">ĐĂNG KÝ</string>
+    <string name="register_button_text">Đăng ký</string>
+    <string name="confirm_password_hint">Xác nhận mật khẩu</string>
+    <string name="email_hint">Email</string>
+    <string name="fullname_hint">Họ và tên</string>
+    <string name="phone_hint">Số điện thoại</string>
+    <string name="already_have_account">Đã có tài khoản? Đăng nhập ngay</string>
+</resources>
