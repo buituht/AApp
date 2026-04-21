@@ -29,6 +29,7 @@ import java.util.List;
 public class BannerAdminActivity extends AppCompatActivity {
 
     private EditText etBannerUrl;
+    
     private Button btnAddBanner;
     private ImageView ivPreview;
     private View btnSelectImage;
