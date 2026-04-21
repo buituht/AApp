@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="categories">
+        <item>Điện thoại</item>
+        <item>Máy tính</item>
+        <item>Phụ kiện</item>
+        <item>Thời trang</item>
+        <item>Khác</item>
+    </string-array>
+</resources>
