@@ -1,0 +1,193 @@
+package com.example.myapplication;
+
+import android.app.DatePickerDialog;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.provider.MediaStore;
+import android.util.Log;
+import android.widget.ImageView;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
+import com.bumptech.glide.Glide;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputEditText;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.util.Calendar;
+
+public class EditProfileActivity extends AppCompatActivity {
+
+    private TextInputEditText etName, etEmail, etPhone, etAddress, etHomeAddress, etCompanyAddress, etDob;
+    private RadioGroup rgGender;
+    private RadioButton rbMale, rbFemale;
+    private MaterialButton btnSave;
+    private ImageView ivAvatar;
+    private BottomNavigationView bottomNavigationView;
+    private UserDAO userDAO;
+    private Uri selectedImageUri;
+
+    private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    selectedImageUri = result.getData().getData();
+                    ivAvatar.setImageURI(selectedImageUri);
+                }
+            }
+    );
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_edit_profile);
+
+        userDAO = new UserDAO(this);
+        initViews();
+        loadUserData();
+        setupBottomNavigation();
+
+        etDob.setOnClickListener(v -> showDatePicker());
+        findViewById(R.id.btn_select_avatar).setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+            imagePickerLauncher.launch(intent);
+        });
+
+        btnSave.setOnClickListener(v -> saveProfileChanges());
+    }
+
+    private void initViews() {
+        etName = findViewById(R.id.et_edit_name);
+        etEmail = findViewById(R.id.et_edit_email);
+        etPhone = findViewById(R.id.et_edit_phone);
+        etAddress = findViewById(R.id.et_edit_address);
+        etHomeAddress = findViewById(R.id.et_edit_home_address);
+        etCompanyAddress = findViewById(R.id.et_edit_company_address);
+        etDob = findViewById(R.id.et_edit_dob);
+        rgGender = findViewById(R.id.rg_edit_gender);
+        rbMale = findViewById(R.id.rb_edit_male);
+        rbFemale = findViewById(R.id.rb_edit_female);
+        btnSave = findViewById(R.id.btn_save_profile);
+        ivAvatar = findViewById(R.id.iv_edit_avatar_preview);
+        bottomNavigationView = findViewById(R.id.bottom_navigation);
+    }
+
+    private void loadUserData() {
+        User user = MainActivity.currentUser;
+        if (user != null) {
+            etName.setText(user.getFullName());
+            etEmail.setText(user.getEmail());
+            etPhone.setText(user.getPhoneNumber());
+            etAddress.setText(user.getAddress());
+            etHomeAddress.setText(user.getHomeAddress());
+            etCompanyAddress.setText(user.getCompanyAddress());
+            etDob.setText(user.getDob());
+
+            if ("Nam".equals(user.getGender())) {
+                rbMale.setChecked(true);
+            } else if ("Nữ".equals(user.getGender())) {
+                rbFemale.setChecked(true);
+            }
+
+            if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
+                Glide.with(this).load(user.getAvatarUrl()).placeholder(android.R.drawable.ic_menu_gallery).circleCrop().into(ivAvatar);
+            }
+        }
+    }
+
+    private void showDatePicker() {
+        Calendar calendar = Calendar.getInstance();
+        int year = calendar.get(Calendar.YEAR);
+        int month = calendar.get(Calendar.MONTH);
+        int day = calendar.get(Calendar.DAY_OF_MONTH);
+
+        DatePickerDialog datePickerDialog = new DatePickerDialog(this, (view, year1, month1, dayOfMonth) -> {
+            etDob.setText(dayOfMonth + "/" + (month1 + 1) + "/" + year1);
+        }, year, month, day);
+        datePickerDialog.show();
+    }
+
+    private void saveProfileChanges() {
+        User user = MainActivity.currentUser;
+        if (user == null) return;
+
+        String name = etName.getText().toString().trim();
+        String email = etEmail.getText().toString().trim();
+        String phone = etPhone.getText().toString().trim();
+        String address = etAddress.getText().toString().trim();
+        String homeAddress = etHomeAddress.getText().toString().trim();
+        String companyAddress = etCompanyAddress.getText().toString().trim();
+        String dob = etDob.getText().toString().trim();
+        
+        String gender = "";
+        int checkedId = rgGender.getCheckedRadioButtonId();
+        if (checkedId == R.id.rb_edit_male) gender = "Nam";
+        else if (checkedId == R.id.rb_edit_female) gender = "Nữ";
+
+        if (name.isEmpty() || email.isEmpty() || phone.isEmpty()) {
+            Toast.makeText(this, "Vui lòng nhập đầy đủ họ tên, email và số điện thoại", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        user.setFullName(name);
+        user.setEmail(email);
+        user.setPhoneNumber(phone);
+        user.setAddress(address);
+        user.setHomeAddress(homeAddress);
+        user.setCompanyAddress(companyAddress);
+        user.setDob(dob);
+        user.setGender(gender);
+
+        if (selectedImageUri != null) {
+            String localPath = saveAvatarToInternalStorage(selectedImageUri);
+            if (localPath != null) {
+                user.setAvatarUrl(localPath);
+            }
+        }
+
+        userDAO.updateUser(user);
+        MainActivity.currentUser = user;
+        Toast.makeText(this, "Cập nhật hồ sơ thành công!", Toast.LENGTH_SHORT).show();
+        finish();
+    }
+
+    private String saveAvatarToInternalStorage(Uri uri) {
+        try {
+            File folder = new File(getFilesDir(), "avatars");
+            if (!folder.exists()) folder.mkdirs();
+            String fileName = "avatar_" + MainActivity.currentUser.getUsername() + ".jpg";
+            File file = new File(folder, fileName);
+            InputStream is = getContentResolver().openInputStream(uri);
+            FileOutputStream os = new FileOutputStream(file);
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = is.read(buffer)) > 0) {
+                os.write(buffer, 0, length);
+            }
+            os.close();
+            is.close();
+            return file.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e("AvatarSave", "Error: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void setupBottomNavigation() {
+        bottomNavigationView.setSelectedItemId(R.id.nav_profile);
+        bottomNavigationView.setOnItemSelectedListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.nav_home || itemId == R.id.nav_products) {
+                finish();
+                return true;
+            }
+            return false;
+        });
+    }
+}
