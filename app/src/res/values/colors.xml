@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="purple_main">#d48ee6</color> <!-- Màu tím chủ đạo mới -->
+    <color name="purple_light">#f3e5f5</color>
+    <color name="purple_dark">#ab47bc</color>
+    <color name="gray_text">#9E9E9E</color>
+    <color name="input_border">#E0E0E0</color>
+    <color name="red">#FF0000</color>
+</resources>
