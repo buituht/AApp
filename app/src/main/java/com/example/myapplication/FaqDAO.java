@@ -1,71 +1,55 @@
 package com.example.myapplication;
 
-import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import java.util.ArrayList;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
 import java.util.List;
 
 public class FaqDAO {
-    private SQLiteDatabase db;
+    private FirebaseFirestore firestore;
+    private CollectionReference faqsRef;
     private DatabaseHelper dbHelper;
 
+    public FaqDAO() {
+        firestore = FirebaseFirestore.getInstance();
+        faqsRef = firestore.collection("faqs");
+    }
+
     public FaqDAO(Context context) {
-        dbHelper = new DatabaseHelper(context);
+        this();
+        this.dbHelper = new DatabaseHelper(context);
     }
 
-    public void open() {
-        db = dbHelper.getWritableDatabase();
+    public List<Faq> getAllFaqsSQLite() {
+        return dbHelper != null ? dbHelper.getAllFaqs() : null;
     }
 
-    public void close() {
-        dbHelper.close();
+    public Task<Void> addFaqFirebase(Faq faq) {
+        return addFaq(faq);
     }
 
-    public long addFaq(Faq faq) {
-        open();
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.KEY_FAQ_QUESTION, faq.getQuestion());
-        values.put(DatabaseHelper.KEY_FAQ_ANSWER, faq.getAnswer());
-        values.put(DatabaseHelper.KEY_FAQ_IMAGE, faq.getImageUrl());
-        long id = db.insert(DatabaseHelper.TABLE_FAQS, null, values);
-        close();
-        return id;
+    public Task<QuerySnapshot> getAllFaqsFirebase() {
+        return faqsRef.get();
     }
 
-    public void updateFaq(Faq faq) {
-        open();
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.KEY_FAQ_QUESTION, faq.getQuestion());
-        values.put(DatabaseHelper.KEY_FAQ_ANSWER, faq.getAnswer());
-        values.put(DatabaseHelper.KEY_FAQ_IMAGE, faq.getImageUrl());
-        db.update(DatabaseHelper.TABLE_FAQS, values, DatabaseHelper.KEY_FAQ_ID + " = ?", new String[]{faq.getId()});
-        close();
+    public Task<QuerySnapshot> getAllFaqs() {
+        return getAllFaqsFirebase();
     }
 
-    public void deleteFaq(String id) {
-        open();
-        db.delete(DatabaseHelper.TABLE_FAQS, DatabaseHelper.KEY_FAQ_ID + " = ?", new String[]{id});
-        close();
-    }
-
-    public List<Faq> getAllFaqs() {
-        open();
-        List<Faq> list = new ArrayList<>();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_FAQS, null);
-        if (cursor.moveToFirst()) {
-            do {
-                Faq f = new Faq();
-                f.setId(String.valueOf(cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_FAQ_ID))));
-                f.setQuestion(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_FAQ_QUESTION)));
-                f.setAnswer(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_FAQ_ANSWER)));
-                f.setImageUrl(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_FAQ_IMAGE)));
-                list.add(f);
-            } while (cursor.moveToNext());
+    public Task<Void> addFaq(Faq faq) {
+        if (faq.getId() == null || faq.getId().isEmpty()) {
+            faq.setId(faqsRef.document().getId());
         }
-        cursor.close();
-        close();
-        return list;
+        return faqsRef.document(faq.getId()).set(faq);
+    }
+
+    public Task<Void> updateFaq(Faq faq) {
+        return faqsRef.document(faq.getId()).set(faq);
+    }
+
+    public Task<Void> deleteFaq(String id) {
+        return faqsRef.document(id).delete();
     }
 }
