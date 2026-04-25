@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -19,11 +20,13 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "MainActivity";
     private ProductDAO productDAO;
     private CategoryDAO categoryDAO;
     private BannerDAO bannerDAO;
@@ -86,10 +89,15 @@ public class MainActivity extends AppCompatActivity {
         setupSearch();
         setupFlashSaleCountdown();
         
-        loadCategoriesFromSQLite();
-        loadBannersFromSQLite();
-        loadFaqsFromSQLite();
+        // Load data from Firebase
+        loadProductsFromFirebase(); // Đảm bảo gọi hàm này
+        loadCategoriesFromFirebase();
+        loadBannersFromFirebase();
+        loadFaqsFromFirebase();
         updateUIBasedOnLoginStatus();
+
+        // Tạo tài khoản admin (Chỉ cần chạy một lần)
+        AdminCreator.createAdminAccount();
     }
 
     private void initViews() {
@@ -111,11 +119,16 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btn_notification).setOnClickListener(v -> Toast.makeText(this, "Bạn có 1 thông báo mới về đơn hàng!", Toast.LENGTH_SHORT).show());
     }
 
-    private void loadBannersFromSQLite() {
-        bannerList.clear();
-        bannerList.addAll(bannerDAO.getAllBanners());
-        bannerAdapter.notifyDataSetChanged();
-        setupAutoSlide();
+    private void loadBannersFromFirebase() {
+        bannerDAO.getAllBannersFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+            bannerList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Banner banner = doc.toObject(Banner.class);
+                if (banner != null) bannerList.add(banner);
+            }
+            bannerAdapter.notifyDataSetChanged();
+            setupAutoSlide();
+        }).addOnFailureListener(e -> Log.e(TAG, "Error loading banners", e));
     }
 
     private void setupAutoSlide() {
@@ -134,10 +147,15 @@ public class MainActivity extends AppCompatActivity {
         bannerHandler.postDelayed(bannerRunnable, 3000);
     }
 
-    private void loadFaqsFromSQLite() {
-        faqList.clear();
-        faqList.addAll(faqDAO.getAllFaqs());
-        faqAdapter.notifyDataSetChanged();
+    private void loadFaqsFromFirebase() {
+        faqDAO.getAllFaqsFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+            faqList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Faq faq = doc.toObject(Faq.class);
+                if (faq != null) faqList.add(faq);
+            }
+            faqAdapter.notifyDataSetChanged();
+        }).addOnFailureListener(e -> Log.e(TAG, "Error loading FAQs", e));
     }
 
     private void setupFlashSaleCountdown() {
@@ -160,11 +178,16 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void loadCategoriesFromSQLite() {
-        categoryList.clear();
-        categoryList.addAll(categoryDAO.getAllCategories());
-        categoryList.add(new Category("all", "Tất cả", ""));
-        categoryAdapter.notifyDataSetChanged();
+    private void loadCategoriesFromFirebase() {
+        categoryDAO.getAllCategoriesFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+            categoryList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Category cat = doc.toObject(Category.class);
+                if (cat != null) categoryList.add(cat);
+            }
+            categoryList.add(new Category("all", "Tất cả", ""));
+            categoryAdapter.notifyDataSetChanged();
+        }).addOnFailureListener(e -> Log.e(TAG, "Error loading categories", e));
     }
 
     private void filterByCategory(String categoryName) {
@@ -349,10 +372,10 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         updateUIBasedOnLoginStatus();
         setupBottomNavigation();
-        loadProductsFromSQLite();
-        loadCategoriesFromSQLite();
-        loadBannersFromSQLite();
-        loadFaqsFromSQLite();
+        loadProductsFromFirebase();
+        loadCategoriesFromFirebase();
+        loadBannersFromFirebase();
+        loadFaqsFromFirebase();
         updateCartBadge();
     }
 
@@ -362,29 +385,37 @@ public class MainActivity extends AppCompatActivity {
         if (bannerRunnable != null) bannerHandler.removeCallbacks(bannerRunnable);
     }
 
-    private void loadProductsFromSQLite() {
-        productList.clear();
-        hotDiscountList.clear();
-        newArrivalList.clear();
-        
-        List<Product> allProducts = productDAO.getAllProducts();
-        for (Product product : allProducts) {
-            productList.add(product);
-            if (product.isHotDiscount()) {
-                hotDiscountList.add(product);
+    private void loadProductsFromFirebase() {
+        productDAO.getAllProducts().addOnSuccessListener(queryDocumentSnapshots -> {
+            productList.clear();
+            hotDiscountList.clear();
+            newArrivalList.clear();
+            
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Product product = doc.toObject(Product.class);
+                if (product != null) {
+                    product.setId(doc.getId()); // Thiết lập ID từ document
+                    productList.add(product);
+                    if (product.isHotDiscount()) {
+                        hotDiscountList.add(product);
+                    }
+                    if (product.isNewArrival()) {
+                        newArrivalList.add(product);
+                    }
+                }
             }
-            if (product.isNewArrival()) {
-                newArrivalList.add(product);
-            }
-        }
-        
-        if (findViewById(R.id.tv_title_hot_discount) != null)
-            findViewById(R.id.tv_title_hot_discount).setVisibility(hotDiscountList.isEmpty() ? View.GONE : View.VISIBLE);
-        if (findViewById(R.id.tv_title_new_arrival) != null)
-            findViewById(R.id.tv_title_new_arrival).setVisibility(newArrivalList.isEmpty() ? View.GONE : View.VISIBLE);
-        
-        hotDiscountAdapter.notifyDataSetChanged();
-        newArrivalAdapter.notifyDataSetChanged();
-        filterProducts(etSearch.getText().toString());
+            
+            if (findViewById(R.id.tv_title_hot_discount) != null)
+                findViewById(R.id.tv_title_hot_discount).setVisibility(hotDiscountList.isEmpty() ? View.GONE : View.VISIBLE);
+            if (findViewById(R.id.tv_title_new_arrival) != null)
+                findViewById(R.id.tv_title_new_arrival).setVisibility(newArrivalList.isEmpty() ? View.GONE : View.VISIBLE);
+            
+            hotDiscountAdapter.notifyDataSetChanged();
+            newArrivalAdapter.notifyDataSetChanged();
+            filterProducts(etSearch.getText().toString());
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Error loading products", e);
+            Toast.makeText(this, "Lỗi khi tải sản phẩm từ Firebase", Toast.LENGTH_SHORT).show();
+        });
     }
 }
