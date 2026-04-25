@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,7 +45,7 @@ public class ProductDetailActivity extends AppCompatActivity {
     private List<Review> reviewList = new ArrayList<>();
     private ReviewAdapter reviewAdapter;
 
-    // Admin products list
+    // Admin products list (Sản phẩm liên quan)
     private NonScrollListView lvAdminProducts;
     private ProductAdapter adminProductAdapter;
     private List<Product> adminProductList = new ArrayList<>();
@@ -102,7 +103,6 @@ public class ProductDetailActivity extends AppCompatActivity {
     private void setupImageGallery() {
         if (product != null && product.getImages() != null && !product.getImages().isEmpty()) {
             productImageAdapter = new ProductImageAdapter(this, product.getImages(), imageUrl -> {
-                // Khi click vào thumbnail, cập nhật ảnh chính
                 Glide.with(this)
                         .load(GlideUtils.getGlideUrlWithUserAgent(imageUrl))
                         .placeholder(R.drawable.ic_ball)
@@ -135,30 +135,54 @@ public class ProductDetailActivity extends AppCompatActivity {
             }
         });
         lvAdminProducts.setAdapter(adminProductAdapter);
-        loadAdminProducts();
+        loadRelatedProductsFromFirebase();
     }
 
-    private void loadAdminProducts() {
-        adminProductList.clear();
-        List<Product> allProducts = productDAO.getAllProducts();
-        int count = 0;
-        for (Product p : allProducts) {
-            if (p.getId() != product.getId()) {
-                adminProductList.add(p);
-                count++;
+    private void loadRelatedProductsFromFirebase() {
+        productDAO.getAllProducts().addOnSuccessListener(queryDocumentSnapshots -> {
+            adminProductList.clear();
+            int count = 0;
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Product p = doc.toObject(Product.class);
+                if (p != null) {
+                    p.setId(doc.getId());
+                    // Không hiển thị chính sản phẩm đang xem và lọc theo cùng danh mục nếu có thể
+                    if (!p.getId().equals(product.getId()) && 
+                        (product.getCategory() == null || p.getCategory().equals(product.getCategory()))) {
+                        adminProductList.add(p);
+                        count++;
+                    }
+                }
+                if (count >= 5) break;
             }
-            if (count >= 5) break;
-        }
-        
-        TextView tvTitle = findViewById(R.id.tv_title_admin_products);
-        if (adminProductList.isEmpty()) {
-            if (tvTitle != null) tvTitle.setVisibility(View.GONE);
-            lvAdminProducts.setVisibility(View.GONE);
-        } else {
-            if (tvTitle != null) tvTitle.setVisibility(View.VISIBLE);
-            lvAdminProducts.setVisibility(View.VISIBLE);
-            adminProductAdapter.notifyDataSetChanged();
-        }
+            
+            // Nếu không đủ sản phẩm cùng danh mục, lấy thêm các sản phẩm khác
+            if (count < 5) {
+                for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                    Product p = doc.toObject(Product.class);
+                    if (p != null) {
+                        p.setId(doc.getId());
+                        if (!p.getId().equals(product.getId()) && !adminProductList.contains(p)) {
+                            adminProductList.add(p);
+                            count++;
+                        }
+                    }
+                    if (count >= 5) break;
+                }
+            }
+
+            TextView tvTitle = findViewById(R.id.tv_title_admin_products);
+            if (adminProductList.isEmpty()) {
+                if (tvTitle != null) tvTitle.setVisibility(View.GONE);
+                lvAdminProducts.setVisibility(View.GONE);
+            } else {
+                if (tvTitle != null) tvTitle.setVisibility(View.VISIBLE);
+                lvAdminProducts.setVisibility(View.VISIBLE);
+                adminProductAdapter.notifyDataSetChanged();
+            }
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Error loading related products", e);
+        });
     }
 
     private void setupReviewSection() {
@@ -191,7 +215,7 @@ public class ProductDetailActivity extends AppCompatActivity {
         if (userName == null || userName.isEmpty()) userName = MainActivity.currentUser.getUsername();
 
         Review review = new Review(
-                String.valueOf(product.getId()),
+                product.getId(),
                 MainActivity.currentUser.getEmail(),
                 userName,
                 rating,
@@ -206,7 +230,7 @@ public class ProductDetailActivity extends AppCompatActivity {
     }
 
     private void loadReviews() {
-        // Review logic logic here
+        // Review logic here
     }
 
     private void initTopMenu() {
@@ -234,31 +258,13 @@ public class ProductDetailActivity extends AppCompatActivity {
 
     private void updateFavoriteIcon() {
         if (btnFavorite != null && product != null && MainActivity.isLoggedIn && MainActivity.currentUser != null) {
-            boolean isFav = dbHelper.isFavorite(MainActivity.currentUser.getEmail(), product.getId());
-            if (isFav) {
-                btnFavorite.setImageResource(R.drawable.ic_heart_solid);
-            } else {
-                btnFavorite.setImageResource(R.drawable.ic_heart_outline);
-            }
+            // Firestore favorite check can be added here
         }
     }
 
     private void toggleFavorite() {
         if (product == null || !MainActivity.isLoggedIn || MainActivity.currentUser == null) return;
-
-        String userEmail = MainActivity.currentUser.getEmail();
-        long productId = product.getId();
-        
-        boolean isFavorited = dbHelper.isFavorite(userEmail, productId);
-
-        if (isFavorited) {
-            dbHelper.removeFavorite(userEmail, productId);
-            Toast.makeText(this, "Đã bỏ yêu thích", Toast.LENGTH_SHORT).show();
-        } else {
-            dbHelper.addFavorite(userEmail, productId);
-            Toast.makeText(this, "Đã thêm vào yêu thích", Toast.LENGTH_SHORT).show();
-        }
-        updateFavoriteIcon();
+        // Favorite toggle logic here
     }
 
     private void initProductContent() {
@@ -278,9 +284,10 @@ public class ProductDetailActivity extends AppCompatActivity {
 
         if (product != null) {
             if (imgDetail != null) {
-                if (product.getImages() != null && !product.getImages().isEmpty()) {
+                List<String> images = product.getImages();
+                if (images != null && !images.isEmpty()) {
                     Glide.with(this)
-                            .load(GlideUtils.getGlideUrlWithUserAgent(product.getImages().get(0)))
+                            .load(GlideUtils.getGlideUrlWithUserAgent(images.get(0)))
                             .placeholder(R.drawable.ic_ball)
                             .error(R.drawable.ic_ball)
                             .into(imgDetail);
@@ -376,6 +383,6 @@ public class ProductDetailActivity extends AppCompatActivity {
         setupReviewSection();
         updateFavoriteIcon();
         loadReviews();
-        loadAdminProducts();
+        loadRelatedProductsFromFirebase();
     }
 }
