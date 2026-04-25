@@ -1,5 +1,7 @@
 package com.example.myapplication;
 
+import com.google.firebase.firestore.Exclude;
+import com.google.firebase.firestore.PropertyName;
 import java.io.Serializable;
 
 public class User implements Serializable {
@@ -10,30 +12,18 @@ public class User implements Serializable {
     private String dob;
     private String gender;
     private String address;
-    private String homeAddress; // Địa chỉ nhà
-    private String companyAddress; // Địa chỉ công ty
+    private String homeAddress;
+    private String companyAddress;
     private boolean termsAccepted;
     private String password;
     private String avatarUrl;
     private boolean isAdmin;
     
-    // Loyalty program fields
     private int points;
     private long totalSpent;
 
     public User() {
         // Required for Firestore
-    }
-
-    public User(String email, String username, String fullName, String phoneNumber, String dob, String gender, String address, boolean termsAccepted) {
-        this.email = email;
-        this.username = username;
-        this.fullName = fullName;
-        this.phoneNumber = phoneNumber;
-        this.dob = dob;
-        this.gender = gender;
-        this.address = address;
-        this.termsAccepted = termsAccepted;
     }
 
     public User(String email, String username, String fullName, String phoneNumber, String dob, String gender, String address, String homeAddress, String companyAddress, boolean termsAccepted) {
@@ -47,21 +37,6 @@ public class User implements Serializable {
         this.homeAddress = homeAddress;
         this.companyAddress = companyAddress;
         this.termsAccepted = termsAccepted;
-        this.isAdmin = false;
-    }
-
-    public User(String email, String username, String fullName, String phoneNumber, String dob, String gender, String address, String homeAddress, String companyAddress, boolean termsAccepted, boolean isAdmin) {
-        this.email = email;
-        this.username = username;
-        this.fullName = fullName;
-        this.phoneNumber = phoneNumber;
-        this.dob = dob;
-        this.gender = gender;
-        this.address = address;
-        this.homeAddress = homeAddress;
-        this.companyAddress = companyAddress;
-        this.termsAccepted = termsAccepted;
-        this.isAdmin = isAdmin;
     }
 
     public String getEmail() { return email; }
@@ -100,8 +75,10 @@ public class User implements Serializable {
     public String getAvatarUrl() { return avatarUrl; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
 
+    @PropertyName("isAdmin")
     public boolean isAdmin() { return isAdmin; }
-    public void setAdmin(boolean admin) { isAdmin = admin; }
+    @PropertyName("isAdmin")
+    public void setAdmin(boolean admin) { this.isAdmin = admin; }
 
     public int getPoints() { return points; }
     public void setPoints(int points) { this.points = points; }
@@ -109,6 +86,7 @@ public class User implements Serializable {
     public long getTotalSpent() { return totalSpent; }
     public void setTotalSpent(long totalSpent) { this.totalSpent = totalSpent; }
 
+    @Exclude
     public String getMembershipLevel() {
         if (totalSpent >= 50000000) return "Kim cương";
         if (totalSpent >= 20000000) return "Vàng";
