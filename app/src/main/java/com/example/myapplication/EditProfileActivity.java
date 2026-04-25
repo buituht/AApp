@@ -24,7 +24,7 @@ import java.util.Calendar;
 
 public class EditProfileActivity extends AppCompatActivity {
 
-    private TextInputEditText etName, etEmail, etPhone, etAddress, etHomeAddress, etCompanyAddress, etDob;
+    private TextInputEditText etName, etEmail, etPhone, etAddress, etHomeAddress, etCompanyAddress, etDob, etAvatarUrl;
     private RadioGroup rgGender;
     private RadioButton rbMale, rbFemale;
     private MaterialButton btnSave;
@@ -32,13 +32,16 @@ public class EditProfileActivity extends AppCompatActivity {
     private BottomNavigationView bottomNavigationView;
     private UserDAO userDAO;
     private Uri selectedImageUri;
+    private String oldEmail; // Để giữ email cũ làm khóa cập nhật
 
     private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     selectedImageUri = result.getData().getData();
-                    ivAvatar.setImageURI(selectedImageUri);
+                    // Hiển thị xem trước ngay lập tức
+                    Glide.with(this).load(selectedImageUri).circleCrop().into(ivAvatar);
+                    etAvatarUrl.setText(selectedImageUri.toString());
                 }
             }
     );
@@ -70,6 +73,7 @@ public class EditProfileActivity extends AppCompatActivity {
         etHomeAddress = findViewById(R.id.et_edit_home_address);
         etCompanyAddress = findViewById(R.id.et_edit_company_address);
         etDob = findViewById(R.id.et_edit_dob);
+        etAvatarUrl = findViewById(R.id.et_edit_avatar_url);
         rgGender = findViewById(R.id.rg_edit_gender);
         rbMale = findViewById(R.id.rb_edit_male);
         rbFemale = findViewById(R.id.rb_edit_female);
@@ -81,6 +85,7 @@ public class EditProfileActivity extends AppCompatActivity {
     private void loadUserData() {
         User user = MainActivity.currentUser;
         if (user != null) {
+            oldEmail = user.getEmail(); // Lưu lại email gốc
             etName.setText(user.getFullName());
             etEmail.setText(user.getEmail());
             etPhone.setText(user.getPhoneNumber());
@@ -88,12 +93,10 @@ public class EditProfileActivity extends AppCompatActivity {
             etHomeAddress.setText(user.getHomeAddress());
             etCompanyAddress.setText(user.getCompanyAddress());
             etDob.setText(user.getDob());
+            etAvatarUrl.setText(user.getAvatarUrl());
 
-            if ("Nam".equals(user.getGender())) {
-                rbMale.setChecked(true);
-            } else if ("Nữ".equals(user.getGender())) {
-                rbFemale.setChecked(true);
-            }
+            if ("Nam".equals(user.getGender())) rbMale.setChecked(true);
+            else if ("Nữ".equals(user.getGender())) rbFemale.setChecked(true);
 
             if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
                 Glide.with(this).load(user.getAvatarUrl()).placeholder(android.R.drawable.ic_menu_gallery).circleCrop().into(ivAvatar);
@@ -103,13 +106,9 @@ public class EditProfileActivity extends AppCompatActivity {
 
     private void showDatePicker() {
         Calendar calendar = Calendar.getInstance();
-        int year = calendar.get(Calendar.YEAR);
-        int month = calendar.get(Calendar.MONTH);
-        int day = calendar.get(Calendar.DAY_OF_MONTH);
-
-        DatePickerDialog datePickerDialog = new DatePickerDialog(this, (view, year1, month1, dayOfMonth) -> {
-            etDob.setText(dayOfMonth + "/" + (month1 + 1) + "/" + year1);
-        }, year, month, day);
+        DatePickerDialog datePickerDialog = new DatePickerDialog(this, (view, year, month, dayOfMonth) -> {
+            etDob.setText(dayOfMonth + "/" + (month + 1) + "/" + year);
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
         datePickerDialog.show();
     }
 
@@ -118,40 +117,40 @@ public class EditProfileActivity extends AppCompatActivity {
         if (user == null) return;
 
         String name = etName.getText().toString().trim();
-        String email = etEmail.getText().toString().trim();
+        String newEmail = etEmail.getText().toString().trim();
         String phone = etPhone.getText().toString().trim();
-        String address = etAddress.getText().toString().trim();
-        String homeAddress = etHomeAddress.getText().toString().trim();
-        String companyAddress = etCompanyAddress.getText().toString().trim();
-        String dob = etDob.getText().toString().trim();
-        
-        String gender = "";
-        int checkedId = rgGender.getCheckedRadioButtonId();
-        if (checkedId == R.id.rb_edit_male) gender = "Nam";
-        else if (checkedId == R.id.rb_edit_female) gender = "Nữ";
+        String avatarUrl = etAvatarUrl.getText().toString().trim();
 
-        if (name.isEmpty() || email.isEmpty() || phone.isEmpty()) {
-            Toast.makeText(this, "Vui lòng nhập đầy đủ họ tên, email và số điện thoại", Toast.LENGTH_SHORT).show();
+        if (name.isEmpty() || newEmail.isEmpty() || phone.isEmpty()) {
+            Toast.makeText(this, "Vui lòng nhập đầy đủ thông tin bắt buộc", Toast.LENGTH_SHORT).show();
             return;
         }
 
+        // Cập nhật thông tin vào object tạm
         user.setFullName(name);
-        user.setEmail(email);
+        user.setEmail(newEmail);
         user.setPhoneNumber(phone);
-        user.setAddress(address);
-        user.setHomeAddress(homeAddress);
-        user.setCompanyAddress(companyAddress);
-        user.setDob(dob);
-        user.setGender(gender);
+        user.setAddress(etAddress.getText().toString().trim());
+        user.setHomeAddress(etHomeAddress.getText().toString().trim());
+        user.setCompanyAddress(etCompanyAddress.getText().toString().trim());
+        user.setDob(etDob.getText().toString().trim());
+        user.setGender(rbMale.isChecked() ? "Nam" : "Nữ");
 
-        if (selectedImageUri != null) {
+        // Xử lý ảnh đại diện
+        if (selectedImageUri != null && avatarUrl.equals(selectedImageUri.toString())) {
+            // Nếu vừa chọn ảnh từ máy, lưu vào bộ nhớ nội bộ
             String localPath = saveAvatarToInternalStorage(selectedImageUri);
             if (localPath != null) {
                 user.setAvatarUrl(localPath);
             }
+        } else {
+            // Nếu người dùng nhập URL hoặc giữ nguyên ảnh cũ
+            user.setAvatarUrl(avatarUrl);
         }
 
-        userDAO.updateUser(user);
+        // Cập nhật Database dùng email cũ làm định danh
+        userDAO.updateUserWithOldEmail(user, oldEmail);
+
         MainActivity.currentUser = user;
         Toast.makeText(this, "Cập nhật hồ sơ thành công!", Toast.LENGTH_SHORT).show();
         finish();
@@ -161,15 +160,13 @@ public class EditProfileActivity extends AppCompatActivity {
         try {
             File folder = new File(getFilesDir(), "avatars");
             if (!folder.exists()) folder.mkdirs();
-            String fileName = "avatar_" + MainActivity.currentUser.getUsername() + ".jpg";
+            String fileName = "avatar_" + System.currentTimeMillis() + ".jpg";
             File file = new File(folder, fileName);
             InputStream is = getContentResolver().openInputStream(uri);
             FileOutputStream os = new FileOutputStream(file);
             byte[] buffer = new byte[1024];
             int length;
-            while ((length = is.read(buffer)) > 0) {
-                os.write(buffer, 0, length);
-            }
+            while ((length = is.read(buffer)) > 0) os.write(buffer, 0, length);
             os.close();
             is.close();
             return file.getAbsolutePath();
@@ -182,8 +179,7 @@ public class EditProfileActivity extends AppCompatActivity {
     private void setupBottomNavigation() {
         bottomNavigationView.setSelectedItemId(R.id.nav_profile);
         bottomNavigationView.setOnItemSelectedListener(item -> {
-            int itemId = item.getItemId();
-            if (itemId == R.id.nav_home || itemId == R.id.nav_products) {
+            if (item.getItemId() == R.id.nav_home || item.getItemId() == R.id.nav_products) {
                 finish();
                 return true;
             }
