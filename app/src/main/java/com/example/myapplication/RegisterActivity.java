@@ -35,9 +35,7 @@ public class RegisterActivity extends AppCompatActivity {
         initViews();
         setupBottomNavigation();
 
-        // Thay đổi cách thức chọn ngày sinh để dễ dùng hơn
         etDob.setOnClickListener(v -> showDatePicker());
-        // Ngăn chặn bàn phím hiện lên khi nhấn vào ô ngày sinh
         etDob.setFocusable(false);
         etDob.setClickable(true);
 
@@ -56,11 +54,8 @@ public class RegisterActivity extends AppCompatActivity {
                 boolean terms = cbTerms.isChecked();
 
                 int selectedGenderId = rgGender.getCheckedRadioButtonId();
-                String gender = "";
-                if (selectedGenderId != -1) {
-                    RadioButton selectedRadioButton = findViewById(selectedGenderId);
-                    gender = selectedRadioButton.getText().toString();
-                }
+                final String gender = (selectedGenderId != -1) ? 
+                        ((RadioButton) findViewById(selectedGenderId)).getText().toString() : "";
 
                 if (email.isEmpty() || username.isEmpty() || fullName.isEmpty() || password.isEmpty() || gender.isEmpty()) {
                     Toast.makeText(RegisterActivity.this, "Vui lòng nhập đầy đủ thông tin!", Toast.LENGTH_SHORT).show();
@@ -72,23 +67,23 @@ public class RegisterActivity extends AppCompatActivity {
                     return;
                 }
 
-                // Kiểm tra xem email đã tồn tại chưa
-                if (userDAO.getUserByEmail(email) != null) {
-                    Toast.makeText(RegisterActivity.this, "Email này đã được đăng ký!", Toast.LENGTH_SHORT).show();
-                    return;
-                }
+                // Kiểm tra email tồn tại trong Firestore
+                userDAO.getUserByEmail(email).addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        Toast.makeText(RegisterActivity.this, "Email này đã được đăng ký!", Toast.LENGTH_SHORT).show();
+                    } else {
+                        User newUser = new User(email, username, fullName, phoneNumber, dob, gender, address, homeAddress, companyAddress, terms);
+                        newUser.setPassword(password);
 
-                User newUser = new User(email, username, fullName, phoneNumber, dob, gender, address, homeAddress, companyAddress, terms);
-                newUser.setPassword(password);
-
-                long result = userDAO.addUser(newUser);
-                if (result != -1) {
-                    Toast.makeText(RegisterActivity.this, "Đăng ký thành công!", Toast.LENGTH_SHORT).show();
-                    startActivity(new Intent(RegisterActivity.this, LoginActivity.class));
-                    finish();
-                } else {
-                    Toast.makeText(RegisterActivity.this, "Lỗi đăng ký!", Toast.LENGTH_SHORT).show();
-                }
+                        userDAO.addUser(newUser).addOnSuccessListener(aVoid -> {
+                            Toast.makeText(RegisterActivity.this, "Đăng ký thành công!", Toast.LENGTH_SHORT).show();
+                            startActivity(new Intent(RegisterActivity.this, LoginActivity.class));
+                            finish();
+                        }).addOnFailureListener(e -> {
+                            Toast.makeText(RegisterActivity.this, "Lỗi đăng ký: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                });
             }
         });
 
@@ -99,18 +94,15 @@ public class RegisterActivity extends AppCompatActivity {
 
     private void showDatePicker() {
         Calendar calendar = Calendar.getInstance();
-        // Mặc định chọn năm 2000 để người dùng dễ cuộn hơn khi chọn ngày sinh
         int year = 2000;
         int month = calendar.get(Calendar.MONTH);
         int day = calendar.get(Calendar.DAY_OF_MONTH);
 
         DatePickerDialog datePickerDialog = new DatePickerDialog(this, (view, selectedYear, selectedMonth, selectedDay) -> {
-            // Định dạng ngày hiển thị theo kiểu DD/MM/YYYY
             String formattedDate = String.format("%02d/%02d/%d", selectedDay, (selectedMonth + 1), selectedYear);
             etDob.setText(formattedDate);
         }, year, month, day);
         
-        // Giới hạn ngày sinh tối đa là ngày hôm nay
         datePickerDialog.getDatePicker().setMaxDate(System.currentTimeMillis());
         datePickerDialog.show();
     }
@@ -134,8 +126,6 @@ public class RegisterActivity extends AppCompatActivity {
 
     private void setupBottomNavigation() {
         bottomNavigationView.setSelectedItemId(R.id.nav_register);
-
-        // Cập nhật menu dựa trên trạng thái đăng nhập
         android.view.Menu menu = bottomNavigationView.getMenu();
         menu.findItem(R.id.nav_register).setVisible(!MainActivity.isLoggedIn);
         menu.findItem(R.id.nav_favorites).setVisible(MainActivity.isLoggedIn);
@@ -151,12 +141,7 @@ public class RegisterActivity extends AppCompatActivity {
                 startActivity(new Intent(this, FavoriteActivity.class));
                 return true;
             } else if (itemId == R.id.nav_profile) {
-                if (MainActivity.isLoggedIn) {
-                    // Chuyển đến Profile hoặc Main tùy logic của bạn, ở đây dùng LoginActivity nếu chưa login
-                    startActivity(new Intent(this, LoginActivity.class));
-                } else {
-                    startActivity(new Intent(this, LoginActivity.class));
-                }
+                startActivity(new Intent(this, LoginActivity.class));
                 return true;
             }
             return false;
@@ -166,7 +151,6 @@ public class RegisterActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Cập nhật menu khi quay lại
         android.view.Menu menu = bottomNavigationView.getMenu();
         menu.findItem(R.id.nav_register).setVisible(!MainActivity.isLoggedIn);
         menu.findItem(R.id.nav_favorites).setVisible(MainActivity.isLoggedIn);
