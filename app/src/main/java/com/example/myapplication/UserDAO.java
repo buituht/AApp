@@ -54,9 +54,13 @@ public class UserDAO {
     }
 
     public void updateUser(User user) {
+        updateUserWithOldEmail(user, user.getEmail());
+    }
+
+    public void updateUserWithOldEmail(User user, String oldEmail) {
         open();
         ContentValues values = userToValues(user);
-        db.update(DatabaseHelper.TABLE_USERS, values, DatabaseHelper.KEY_USER_EMAIL + " = ?", new String[]{user.getEmail()});
+        db.update(DatabaseHelper.TABLE_USERS, values, DatabaseHelper.KEY_USER_EMAIL + " = ?", new String[]{oldEmail});
         close();
     }
 
