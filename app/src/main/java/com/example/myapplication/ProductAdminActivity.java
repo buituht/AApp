@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ListView;
@@ -13,12 +14,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ProductAdminActivity extends AppCompatActivity {
 
-    private DatabaseHelper dbHelper;
+    private ProductDAO productDAO;
     private List<Product> productList;
     private List<Product> filteredList;
     private ProductAdapter productAdapter;
@@ -39,13 +41,13 @@ public class ProductAdminActivity extends AppCompatActivity {
             return;
         }
 
-        dbHelper = new DatabaseHelper(this);
+        productDAO = new ProductDAO(this);
         initViews();
         setupData();
         setupAdapter();
         setupSearch();
         setupBottomNavigation();
-        loadProductsFromSQLite();
+        loadProductsFromFirebase();
     }
 
     private void initViews() {
@@ -206,16 +208,30 @@ public class ProductAdminActivity extends AppCompatActivity {
         });
     }
 
-    private void loadProductsFromSQLite() {
-        productList.clear();
-        productList.addAll(dbHelper.getAllProducts());
-        filterProducts(etSearch.getText().toString());
+    private void loadProductsFromFirebase() {
+        productDAO.getAllProducts().addOnSuccessListener(queryDocumentSnapshots -> {
+            productList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Product product = doc.toObject(Product.class);
+                if (product != null) {
+                    product.setId(doc.getId());
+                    productList.add(product);
+                }
+            }
+            filterProducts(etSearch.getText().toString());
+        }).addOnFailureListener(e -> {
+            Log.e("ProductAdmin", "Error loading products", e);
+            Toast.makeText(this, "Lỗi khi tải dữ liệu từ Firebase", Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void deleteProduct(Product product) {
-        dbHelper.deleteProduct(product.getId());
-        Toast.makeText(this, "Đã xóa sản phẩm", Toast.LENGTH_SHORT).show();
-        loadProductsFromSQLite();
+        productDAO.deleteProduct(product.getId()).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, "Đã xóa sản phẩm thành công", Toast.LENGTH_SHORT).show();
+            loadProductsFromFirebase();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi khi xóa: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     @Override
@@ -224,6 +240,6 @@ public class ProductAdminActivity extends AppCompatActivity {
         if (bottomNavigationView != null) {
             bottomNavigationView.setSelectedItemId(R.id.nav_products);
         }
-        loadProductsFromSQLite();
+        loadProductsFromFirebase();
     }
 }
