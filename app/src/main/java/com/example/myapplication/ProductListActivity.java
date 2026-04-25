@@ -15,6 +15,7 @@ import android.widget.EditText;
 import android.widget.GridView;
 import android.widget.RadioGroup;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -39,6 +40,7 @@ public class ProductListActivity extends AppCompatActivity {
     private ProductGridAdapter productAdapter;
     private BottomNavigationView bottomNavigationView;
     private EditText etSearch;
+    private TextView tvCartBadge;
     
     private long minPrice = 0;
     private long maxPrice = Long.MAX_VALUE;
@@ -56,14 +58,29 @@ public class ProductListActivity extends AppCompatActivity {
         setupAdapter();
         setupSearch();
         setupBottomNavigation();
+        updateCartBadge();
     }
 
     private void initViews() {
         etSearch = findViewById(R.id.et_search_products);
+        tvCartBadge = findViewById(R.id.tv_cart_badge);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
+        
         findViewById(R.id.btn_cart_products).setOnClickListener(v -> startActivity(new Intent(this, CartActivity.class)));
         findViewById(R.id.btn_voice_search).setOnClickListener(v -> checkPermissionAndStartVoiceSearch());
         findViewById(R.id.btn_filter_products).setOnClickListener(v -> showFilterDialog());
+    }
+
+    private void updateCartBadge() {
+        if (tvCartBadge != null) {
+            int count = CartActivity.cartItemList.size();
+            if (count > 0) {
+                tvCartBadge.setText(String.valueOf(count));
+                tvCartBadge.setVisibility(View.VISIBLE);
+            } else {
+                tvCartBadge.setVisibility(View.GONE);
+            }
+        }
     }
 
     private void checkPermissionAndStartVoiceSearch() {
@@ -182,6 +199,7 @@ public class ProductListActivity extends AppCompatActivity {
             @Override
             public void onBuy(Product product) {
                 CartActivity.cartItemList.add(product);
+                updateCartBadge(); // Cập nhật số lượng trên icon giỏ hàng ngay lập tức
                 Toast.makeText(ProductListActivity.this, "Đã thêm vào giỏ hàng", Toast.LENGTH_SHORT).show();
             }
             @Override
@@ -229,6 +247,7 @@ public class ProductListActivity extends AppCompatActivity {
         super.onResume();
         setupBottomNavigation();
         loadProductsFromSQLite();
+        updateCartBadge(); // Cập nhật lại số lượng khi quay về từ màn hình khác
     }
 
     private void loadProductsFromSQLite() {
