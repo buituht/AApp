@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.speech.RecognizerIntent;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -24,17 +25,17 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 public class ProductListActivity extends AppCompatActivity {
 
     private static final int VOICE_SEARCH_REQUEST_CODE = 100;
     private static final int PERMISSION_RECORD_AUDIO_CODE = 200;
     
-    private DatabaseHelper dbHelper;
+    private ProductDAO productDAO;
     private List<Product> productList;
     private List<Product> filteredList;
     private ProductGridAdapter productAdapter;
@@ -52,13 +53,14 @@ public class ProductListActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_product_list);
 
-        dbHelper = new DatabaseHelper(this);
+        productDAO = new ProductDAO(this);
         initViews();
         setupData();
         setupAdapter();
         setupSearch();
         setupBottomNavigation();
         updateCartBadge();
+        loadProductsFromFirebase();
     }
 
     private void initViews() {
@@ -199,7 +201,7 @@ public class ProductListActivity extends AppCompatActivity {
             @Override
             public void onBuy(Product product) {
                 CartActivity.cartItemList.add(product);
-                updateCartBadge(); // Cập nhật số lượng trên icon giỏ hàng ngay lập tức
+                updateCartBadge();
                 Toast.makeText(ProductListActivity.this, "Đã thêm vào giỏ hàng", Toast.LENGTH_SHORT).show();
             }
             @Override
@@ -246,13 +248,24 @@ public class ProductListActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         setupBottomNavigation();
-        loadProductsFromSQLite();
-        updateCartBadge(); // Cập nhật lại số lượng khi quay về từ màn hình khác
+        loadProductsFromFirebase();
+        updateCartBadge();
     }
 
-    private void loadProductsFromSQLite() {
-        productList.clear();
-        productList.addAll(dbHelper.getAllProducts());
-        applyAllFilters();
+    private void loadProductsFromFirebase() {
+        productDAO.getAllProducts().addOnSuccessListener(queryDocumentSnapshots -> {
+            productList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Product product = doc.toObject(Product.class);
+                if (product != null) {
+                    product.setId(doc.getId());
+                    productList.add(product);
+                }
+            }
+            applyAllFilters();
+        }).addOnFailureListener(e -> {
+            Log.e("ProductList", "Error loading products", e);
+            Toast.makeText(this, "Lỗi khi tải dữ liệu từ Firebase", Toast.LENGTH_SHORT).show();
+        });
     }
 }
