@@ -2,12 +2,14 @@ package com.example.myapplication;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,7 +17,7 @@ public class FaqAdminActivity extends AppCompatActivity {
 
     private RecyclerView rvFaqAdmin;
     private FloatingActionButton fabAddFaq;
-    private DatabaseHelper dbHelper;
+    private FaqDAO faqDAO;
     private List<Faq> faqList = new ArrayList<>();
     private FaqAdminAdapter adapter;
 
@@ -24,10 +26,10 @@ public class FaqAdminActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_faq_admin);
 
-        dbHelper = new DatabaseHelper(this);
+        faqDAO = new FaqDAO(this);
         initViews();
         setupRecyclerView();
-        loadFaqs();
+        loadFaqsFromFirebase();
 
         findViewById(R.id.btn_back_faq).setOnClickListener(v -> finish());
         fabAddFaq.setOnClickListener(v -> startActivity(new Intent(this, AddFaqActivity.class)));
@@ -62,21 +64,35 @@ public class FaqAdminActivity extends AppCompatActivity {
         rvFaqAdmin.setAdapter(adapter);
     }
 
-    private void loadFaqs() {
-        faqList.clear();
-        faqList.addAll(dbHelper.getAllFaqs());
-        adapter.notifyDataSetChanged();
+    private void loadFaqsFromFirebase() {
+        faqDAO.getAllFaqsFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+            faqList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Faq faq = doc.toObject(Faq.class);
+                if (faq != null) {
+                    faq.setId(doc.getId());
+                    faqList.add(faq);
+                }
+            }
+            adapter.notifyDataSetChanged();
+        }).addOnFailureListener(e -> {
+            Log.e("FaqAdminActivity", "Error loading FAQs", e);
+            Toast.makeText(this, "Lỗi khi tải FAQ từ Firebase", Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void deleteFaq(Faq faq) {
-        dbHelper.deleteFaq(faq.getId());
-        Toast.makeText(this, "Đã xóa FAQ", Toast.LENGTH_SHORT).show();
-        loadFaqs();
+        faqDAO.deleteFaq(faq.getId()).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, "Đã xóa FAQ", Toast.LENGTH_SHORT).show();
+            loadFaqsFromFirebase();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi khi xóa FAQ: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        loadFaqs();
+        loadFaqsFromFirebase();
     }
 }
