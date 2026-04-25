@@ -18,9 +18,9 @@ public class ProductAdapter extends BaseAdapter {
     private Context context;
     private List<Product> productList;
     private OnProductActionListener listener;
-    private List<Long> favoriteIds = new ArrayList<>();
+    private List<String> favoriteIds = new ArrayList<>();
     private boolean showAdminActions = false;
-    private DatabaseHelper dbHelper;
+    private UserDAO userDAO;
 
     public interface OnProductActionListener {
         void onEdit(Product product);
@@ -33,7 +33,7 @@ public class ProductAdapter extends BaseAdapter {
         this.context = context;
         this.productList = productList;
         this.listener = listener;
-        this.dbHelper = new DatabaseHelper(context);
+        this.userDAO = new UserDAO(context);
         loadFavoriteIds();
     }
 
@@ -42,14 +42,20 @@ public class ProductAdapter extends BaseAdapter {
         notifyDataSetChanged();
     }
 
-    private void loadFavoriteIds() {
+    public void loadFavoriteIds() {
         if (MainActivity.isLoggedIn && MainActivity.currentUser != null) {
-            List<Product> favorites = dbHelper.getFavorites(MainActivity.currentUser.getEmail());
-            favoriteIds.clear();
-            for (Product p : favorites) {
-                favoriteIds.add(p.getId());
-            }
-            notifyDataSetChanged();
+            userDAO.getFavorites(MainActivity.currentUser.getEmail()).addOnSuccessListener(documentSnapshot -> {
+                if (documentSnapshot.exists()) {
+                    List<String> favs = (List<String>) documentSnapshot.get("favorites");
+                    if (favs != null) {
+                        favoriteIds.clear();
+                        favoriteIds.addAll(favs);
+                        notifyDataSetChanged();
+                    }
+                }
+            }).addOnFailureListener(e -> {
+                Toast.makeText(context, "Lỗi tải yêu thích: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
         }
     }
 
@@ -58,7 +64,13 @@ public class ProductAdapter extends BaseAdapter {
     @Override
     public Object getItem(int position) { return productList.get(position); }
     @Override
-    public long getItemId(int position) { return productList.get(position).getId(); }
+    public long getItemId(int position) { 
+        try {
+            return Long.parseLong(productList.get(position).getId());
+        } catch (Exception e) {
+            return position;
+        }
+    }
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
@@ -117,7 +129,6 @@ public class ProductAdapter extends BaseAdapter {
         }
 
         if (product.getImages() != null && !product.getImages().isEmpty()) {
-            // Lấy hình ảnh đầu tiên trong danh sách để hiển thị
             Glide.with(context)
                     .load(GlideUtils.getGlideUrlWithUserAgent(product.getImages().get(0)))
                     .placeholder(R.drawable.ic_ball)
@@ -171,14 +182,18 @@ public class ProductAdapter extends BaseAdapter {
             return;
         }
         String userEmail = MainActivity.currentUser.getEmail();
-        long productId = product.getId();
+        String productId = product.getId();
+
         if (favoriteIds.contains(productId)) {
-            dbHelper.removeFavorite(userEmail, productId);
-            favoriteIds.remove(productId);
+            userDAO.removeFavorite(userEmail, productId).addOnSuccessListener(aVoid -> {
+                favoriteIds.remove(productId);
+                notifyDataSetChanged();
+            });
         } else {
-            dbHelper.addFavorite(userEmail, productId);
-            favoriteIds.add(productId);
+            userDAO.addFavorite(userEmail, productId).addOnSuccessListener(aVoid -> {
+                favoriteIds.add(productId);
+                notifyDataSetChanged();
+            });
         }
-        notifyDataSetChanged();
     }
 }
