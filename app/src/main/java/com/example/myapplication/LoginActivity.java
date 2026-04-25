@@ -13,6 +13,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.firebase.firestore.DocumentSnapshot;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -41,25 +42,35 @@ public class LoginActivity extends AppCompatActivity {
         btnLogin.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String user = etUsername.getText().toString().trim();
+                String userStr = etUsername.getText().toString().trim();
                 String pass = etPassword.getText().toString().trim();
 
-                if (user.isEmpty() || pass.isEmpty()) {
+                if (userStr.isEmpty() || pass.isEmpty()) {
                     Toast.makeText(LoginActivity.this, "Vui lòng nhập đầy đủ thông tin!", Toast.LENGTH_SHORT).show();
                     return;
                 }
 
-                User loggedInUser = userDAO.getUserByUsername(user);
-                if (loggedInUser != null && loggedInUser.getPassword().equals(pass)) {
-                    MainActivity.isLoggedIn = true;
-                    MainActivity.isAdmin = loggedInUser.isAdmin();
-                    MainActivity.currentUser = loggedInUser;
-                    
-                    Toast.makeText(LoginActivity.this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show();
-                    navigateToMain();
-                } else {
-                    Toast.makeText(LoginActivity.this, "Sai tài khoản hoặc mật khẩu!", Toast.LENGTH_SHORT).show();
-                }
+                // Vì tìm kiếm theo username trong Firestore trả về QuerySnapshot
+                userDAO.getUserByUsername(userStr).addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        DocumentSnapshot doc = queryDocumentSnapshots.getDocuments().get(0);
+                        User loggedInUser = doc.toObject(User.class);
+                        if (loggedInUser != null && loggedInUser.getPassword() != null && loggedInUser.getPassword().equals(pass)) {
+                            MainActivity.isLoggedIn = true;
+                            MainActivity.isAdmin = loggedInUser.isAdmin();
+                            MainActivity.currentUser = loggedInUser;
+                            
+                            Toast.makeText(LoginActivity.this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show();
+                            navigateToMain();
+                        } else {
+                            Toast.makeText(LoginActivity.this, "Sai mật khẩu!", Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        Toast.makeText(LoginActivity.this, "Tài khoản không tồn tại!", Toast.LENGTH_SHORT).show();
+                    }
+                }).addOnFailureListener(e -> {
+                    Toast.makeText(LoginActivity.this, "Lỗi kết nối: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
             }
         });
 
@@ -83,14 +94,12 @@ public class LoginActivity extends AppCompatActivity {
         builder.setTitle("Quên mật khẩu");
         builder.setMessage("Nhập email đã đăng ký để nhận lại mật khẩu:");
 
-        // Tạo container để tạo khoảng cách cho EditText
         FrameLayout container = new FrameLayout(this);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         
-        // Đặt lề trái và phải (20dp)
         int margin = (int) (20 * getResources().getDisplayMetrics().density);
         params.leftMargin = margin;
         params.rightMargin = margin;
@@ -117,13 +126,18 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void findPasswordByEmail(String email) {
-        User user = userDAO.getUserByEmail(email);
-        if (user != null) {
-            String password = user.getPassword();
-            sendEmailSimulation(email, password);
-        } else {
-            Toast.makeText(this, "Email không tồn tại trong hệ thống!", Toast.LENGTH_SHORT).show();
-        }
+        userDAO.getUserByEmail(email).addOnSuccessListener(documentSnapshot -> {
+            if (documentSnapshot.exists()) {
+                User user = documentSnapshot.toObject(User.class);
+                if (user != null && user.getPassword() != null) {
+                    sendEmailSimulation(email, user.getPassword());
+                } else {
+                    Toast.makeText(this, "Không tìm thấy thông tin mật khẩu!", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(this, "Email không tồn tại!", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void sendEmailSimulation(String email, String password) {
