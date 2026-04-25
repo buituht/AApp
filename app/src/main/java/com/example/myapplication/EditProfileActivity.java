@@ -32,14 +32,13 @@ public class EditProfileActivity extends AppCompatActivity {
     private BottomNavigationView bottomNavigationView;
     private UserDAO userDAO;
     private Uri selectedImageUri;
-    private String oldEmail; // Để giữ email cũ làm khóa cập nhật
+    private String oldEmail; 
 
     private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     selectedImageUri = result.getData().getData();
-                    // Hiển thị xem trước ngay lập tức
                     Glide.with(this).load(selectedImageUri).circleCrop().into(ivAvatar);
                     etAvatarUrl.setText(selectedImageUri.toString());
                 }
@@ -85,7 +84,7 @@ public class EditProfileActivity extends AppCompatActivity {
     private void loadUserData() {
         User user = MainActivity.currentUser;
         if (user != null) {
-            oldEmail = user.getEmail(); // Lưu lại email gốc
+            oldEmail = user.getEmail(); 
             etName.setText(user.getFullName());
             etEmail.setText(user.getEmail());
             etPhone.setText(user.getPhoneNumber());
@@ -126,7 +125,6 @@ public class EditProfileActivity extends AppCompatActivity {
             return;
         }
 
-        // Cập nhật thông tin vào object tạm
         user.setFullName(name);
         user.setEmail(newEmail);
         user.setPhoneNumber(phone);
@@ -136,24 +134,22 @@ public class EditProfileActivity extends AppCompatActivity {
         user.setDob(etDob.getText().toString().trim());
         user.setGender(rbMale.isChecked() ? "Nam" : "Nữ");
 
-        // Xử lý ảnh đại diện
         if (selectedImageUri != null && avatarUrl.equals(selectedImageUri.toString())) {
-            // Nếu vừa chọn ảnh từ máy, lưu vào bộ nhớ nội bộ
             String localPath = saveAvatarToInternalStorage(selectedImageUri);
             if (localPath != null) {
                 user.setAvatarUrl(localPath);
             }
         } else {
-            // Nếu người dùng nhập URL hoặc giữ nguyên ảnh cũ
             user.setAvatarUrl(avatarUrl);
         }
 
-        // Cập nhật Database dùng email cũ làm định danh
-        userDAO.updateUserWithOldEmail(user, oldEmail);
-
-        MainActivity.currentUser = user;
-        Toast.makeText(this, "Cập nhật hồ sơ thành công!", Toast.LENGTH_SHORT).show();
-        finish();
+        userDAO.updateUserWithOldEmail(user, oldEmail).addOnSuccessListener(aVoid -> {
+            MainActivity.currentUser = user;
+            Toast.makeText(this, "Cập nhật hồ sơ thành công!", Toast.LENGTH_SHORT).show();
+            finish();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private String saveAvatarToInternalStorage(Uri uri) {
