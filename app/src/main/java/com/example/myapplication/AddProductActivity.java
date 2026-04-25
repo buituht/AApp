@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.io.File;
@@ -32,6 +33,7 @@ public class AddProductActivity extends AppCompatActivity {
 
     private static final String TAG = "AddProductActivity";
     private TextInputEditText etName, etPrice, etDiscountPrice, etDescription, etImages;
+    private TextInputLayout tilImages;
     private TextInputEditText etScreen, etCpu, etRam, etRom, etBattery;
     private CheckBox cbBestSeller, cbNewArrival, cbHotDiscount;
     private Spinner spinnerCategory;
@@ -44,7 +46,6 @@ public class AddProductActivity extends AppCompatActivity {
     private DatabaseHelper dbHelper;
     private boolean isEdit = false;
     private Product productToEdit;
-    private ProgressDialog progressDialog;
     private List<String> categoryList;
     private ArrayAdapter<String> categoryAdapter;
 
@@ -56,8 +57,7 @@ public class AddProductActivity extends AppCompatActivity {
                     if (uri != null) {
                         String localPath = saveImageToInternalStorage(uri);
                         if (localPath != null) {
-                            selectedImagesList.add(localPath);
-                            imageAdapter.notifyItemInserted(selectedImagesList.size() - 1);
+                            addImageToList(localPath);
                         }
                     }
                 }
@@ -70,25 +70,31 @@ public class AddProductActivity extends AppCompatActivity {
         setContentView(R.layout.activity_add_product);
 
         dbHelper = new DatabaseHelper(this);
-        
         initViews();
         setupSpinner();
         setupRecyclerView();
-
-        progressDialog = new ProgressDialog(this);
-        progressDialog.setCancelable(false);
 
         if (getIntent().hasExtra("is_edit")) {
             setupEditMode();
         }
 
+        // Xử lý thêm link khi nhấn icon ở cuối ô nhập
+        tilImages.setEndIconOnClickListener(v -> {
+            String url = etImages.getText().toString().trim();
+            if (!url.isEmpty()) {
+                addImageToList(url);
+                etImages.setText("");
+            } else {
+                Toast.makeText(this, "Vui lòng dán link hình ảnh", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Vẫn giữ tính năng nhấn Enter để thêm
         etImages.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_DONE || 
-                (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN)) {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
                 String url = etImages.getText().toString().trim();
                 if (!url.isEmpty()) {
-                    selectedImagesList.add(url);
-                    imageAdapter.notifyItemInserted(selectedImagesList.size() - 1);
+                    addImageToList(url);
                     etImages.setText("");
                     return true;
                 }
@@ -107,13 +113,25 @@ public class AddProductActivity extends AppCompatActivity {
         loadCategories();
     }
 
+    private void addImageToList(String path) {
+        selectedImagesList.add(path);
+        imageAdapter.notifyItemInserted(selectedImagesList.size() - 1);
+        rvSelectedImages.scrollToPosition(selectedImagesList.size() - 1);
+    }
+
     private void initViews() {
         etName = findViewById(R.id.et_name);
         etPrice = findViewById(R.id.et_price);
         etDiscountPrice = findViewById(R.id.et_discount_price);
         etDescription = findViewById(R.id.et_description);
         etImages = findViewById(R.id.et_images);
+        tilImages = (TextInputLayout) etImages.getParent().getParent(); // Lấy TextInputLayout bao quanh
         
+        // Thiết lập icon thêm link ở cuối ô nhập
+        tilImages.setEndIconMode(TextInputLayout.END_ICON_CUSTOM);
+        tilImages.setEndIconDrawable(android.R.drawable.ic_input_add);
+        tilImages.setEndIconContentDescription("Thêm link");
+
         etScreen = findViewById(R.id.et_spec_screen);
         etCpu = findViewById(R.id.et_spec_cpu);
         etRam = findViewById(R.id.et_spec_ram);
@@ -266,11 +284,9 @@ public class AddProductActivity extends AppCompatActivity {
             
             long result = dbHelper.addProduct(newProduct);
             if (result != -1) {
-                Log.d(TAG, "Product saved successfully with ID: " + result);
                 Toast.makeText(this, "Đã thêm sản phẩm thành công!", Toast.LENGTH_SHORT).show();
                 finish();
             } else {
-                Log.e(TAG, "Failed to save product to database");
                 Toast.makeText(this, "Lỗi: Không thể lưu sản phẩm vào database!", Toast.LENGTH_LONG).show();
             }
         }
@@ -281,17 +297,13 @@ public class AddProductActivity extends AppCompatActivity {
         product.setPrice(price);
         product.setDiscountPrice(discountPrice);
         product.setDescription(description);
-        
-        // Copy the list to avoid reference issues
         product.setImages(new ArrayList<>(selectedImagesList));
-
         product.setCategory(category);
         product.setScreen(etScreen.getText().toString().trim());
         product.setCpu(etCpu.getText().toString().trim());
         product.setRam(etRam.getText().toString().trim());
         product.setRom(etRom.getText().toString().trim());
         product.setBattery(etBattery.getText().toString().trim());
-        
         product.setBestSeller(cbBestSeller.isChecked());
         product.setNewArrival(cbNewArrival.isChecked());
         product.setHotDiscount(cbHotDiscount.isChecked());
