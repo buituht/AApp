@@ -68,7 +68,7 @@ public class FavoriteDAO {
 
     private Product cursorToProduct(Cursor cursor) {
         Product p = new Product();
-        p.setId(cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_PRODUCT_ID)));
+        p.setId(String.valueOf(cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_PRODUCT_ID))));
         p.setName(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_PRODUCT_NAME)));
         p.setPrice(cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_PRODUCT_PRICE)));
         p.setDiscountPrice(cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_PRODUCT_DISCOUNT_PRICE)));
