@@ -1,65 +1,55 @@
 package com.example.myapplication;
 
-import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import java.util.ArrayList;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
 import java.util.List;
 
 public class BannerDAO {
-    private SQLiteDatabase db;
+    private FirebaseFirestore firestore;
+    private CollectionReference bannersRef;
     private DatabaseHelper dbHelper;
 
+    public BannerDAO() {
+        firestore = FirebaseFirestore.getInstance();
+        bannersRef = firestore.collection("banners");
+    }
+
     public BannerDAO(Context context) {
-        dbHelper = new DatabaseHelper(context);
+        this();
+        this.dbHelper = new DatabaseHelper(context);
     }
 
-    public void open() {
-        db = dbHelper.getWritableDatabase();
+    public List<Banner> getAllBannersSQLite() {
+        return dbHelper != null ? dbHelper.getAllBanners() : null;
     }
 
-    public void close() {
-        dbHelper.close();
+    public Task<Void> addBannerFirebase(Banner banner) {
+        return addBanner(banner);
     }
 
-    public long addBanner(Banner banner) {
-        open();
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.KEY_BANNER_IMAGE, banner.getImageUrl());
-        long id = db.insert(DatabaseHelper.TABLE_BANNERS, null, values);
-        close();
-        return id;
+    public Task<QuerySnapshot> getAllBannersFirebase() {
+        return bannersRef.get();
     }
 
-    public void updateBanner(Banner banner) {
-        open();
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.KEY_BANNER_IMAGE, banner.getImageUrl());
-        db.update(DatabaseHelper.TABLE_BANNERS, values, DatabaseHelper.KEY_BANNER_ID + " = ?", new String[]{banner.getId()});
-        close();
+    public Task<QuerySnapshot> getAllBanners() {
+        return getAllBannersFirebase();
     }
 
-    public void deleteBanner(String id) {
-        open();
-        db.delete(DatabaseHelper.TABLE_BANNERS, DatabaseHelper.KEY_BANNER_ID + " = ?", new String[]{id});
-        close();
-    }
-
-    public List<Banner> getAllBanners() {
-        open();
-        List<Banner> list = new ArrayList<>();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_BANNERS, null);
-        if (cursor.moveToFirst()) {
-            do {
-                Banner b = new Banner();
-                b.setId(String.valueOf(cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_BANNER_ID))));
-                b.setImageUrl(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_BANNER_IMAGE)));
-                list.add(b);
-            } while (cursor.moveToNext());
+    public Task<Void> addBanner(Banner banner) {
+        if (banner.getId() == null || banner.getId().isEmpty()) {
+            banner.setId(bannersRef.document().getId());
         }
-        cursor.close();
-        close();
-        return list;
+        return bannersRef.document(banner.getId()).set(banner);
+    }
+
+    public Task<Void> updateBanner(Banner banner) {
+        return bannersRef.document(banner.getId()).set(banner);
+    }
+
+    public Task<Void> deleteBanner(String id) {
+        return bannersRef.document(id).delete();
     }
 }
