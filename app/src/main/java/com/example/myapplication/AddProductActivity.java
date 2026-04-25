@@ -1,13 +1,11 @@
 package com.example.myapplication;
 
-import android.app.ProgressDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
@@ -22,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.firebase.firestore.DocumentSnapshot;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -43,10 +42,11 @@ public class AddProductActivity extends AppCompatActivity {
     private SelectedImageAdapter imageAdapter;
     private List<String> selectedImagesList = new ArrayList<>();
     
-    private DatabaseHelper dbHelper;
+    private ProductDAO productDAO;
+    private CategoryDAO categoryDAO;
     private boolean isEdit = false;
     private Product productToEdit;
-    private List<String> categoryList;
+    private List<String> categoryNamesList = new ArrayList<>();
     private ArrayAdapter<String> categoryAdapter;
 
     private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
@@ -69,7 +69,9 @@ public class AddProductActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_product);
 
-        dbHelper = new DatabaseHelper(this);
+        productDAO = new ProductDAO(this);
+        categoryDAO = new CategoryDAO(this);
+        
         initViews();
         setupSpinner();
         setupRecyclerView();
@@ -78,7 +80,6 @@ public class AddProductActivity extends AppCompatActivity {
             setupEditMode();
         }
 
-        // Xử lý thêm link khi nhấn icon ở cuối ô nhập
         tilImages.setEndIconOnClickListener(v -> {
             String url = etImages.getText().toString().trim();
             if (!url.isEmpty()) {
@@ -89,7 +90,6 @@ public class AddProductActivity extends AppCompatActivity {
             }
         });
 
-        // Vẫn giữ tính năng nhấn Enter để thêm
         etImages.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 String url = etImages.getText().toString().trim();
@@ -110,7 +110,7 @@ public class AddProductActivity extends AppCompatActivity {
         btnSave.setOnClickListener(v -> validateAndSave());
         btnCancel.setOnClickListener(v -> finish());
         
-        loadCategories();
+        loadCategoriesFromFirebase();
     }
 
     private void addImageToList(String path) {
@@ -125,12 +125,10 @@ public class AddProductActivity extends AppCompatActivity {
         etDiscountPrice = findViewById(R.id.et_discount_price);
         etDescription = findViewById(R.id.et_description);
         etImages = findViewById(R.id.et_images);
-        tilImages = (TextInputLayout) etImages.getParent().getParent(); // Lấy TextInputLayout bao quanh
+        tilImages = (TextInputLayout) etImages.getParent().getParent();
         
-        // Thiết lập icon thêm link ở cuối ô nhập
         tilImages.setEndIconMode(TextInputLayout.END_ICON_CUSTOM);
         tilImages.setEndIconDrawable(android.R.drawable.ic_input_add);
-        tilImages.setEndIconContentDescription("Thêm link");
 
         etScreen = findViewById(R.id.et_spec_screen);
         etCpu = findViewById(R.id.et_spec_cpu);
@@ -160,29 +158,33 @@ public class AddProductActivity extends AppCompatActivity {
     }
 
     private void setupSpinner() {
-        categoryList = new ArrayList<>();
-        categoryAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, categoryList);
+        categoryAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, categoryNamesList);
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategory.setAdapter(categoryAdapter);
     }
 
-    private void loadCategories() {
-        List<Category> cats = dbHelper.getAllCategories();
-        categoryList.clear();
-        for (Category c : cats) {
-            categoryList.add(c.getName());
-        }
-        if (categoryList.isEmpty()) {
-            categoryList.add("Điện thoại");
-            categoryList.add("Máy tính");
-            categoryList.add("Phụ kiện");
-        }
-        categoryAdapter.notifyDataSetChanged();
-        
-        if (isEdit && productToEdit != null && productToEdit.getCategory() != null) {
-            int position = categoryAdapter.getPosition(productToEdit.getCategory());
-            if (position >= 0) spinnerCategory.setSelection(position);
-        }
+    private void loadCategoriesFromFirebase() {
+        categoryDAO.getAllCategories().addOnSuccessListener(queryDocumentSnapshots -> {
+            categoryNamesList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Category cat = doc.toObject(Category.class);
+                if (cat != null) categoryNamesList.add(cat.getName());
+            }
+            if (categoryNamesList.isEmpty()) {
+                categoryNamesList.add("Điện thoại");
+                categoryNamesList.add("Máy tính");
+                categoryNamesList.add("Phụ kiện");
+            }
+            categoryAdapter.notifyDataSetChanged();
+            
+            if (isEdit && productToEdit != null && productToEdit.getCategory() != null) {
+                int position = categoryAdapter.getPosition(productToEdit.getCategory());
+                if (position >= 0) spinnerCategory.setSelection(position);
+            }
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Error loading categories", e);
+            Toast.makeText(this, "Không thể tải danh mục từ Firebase", Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void setupEditMode() {
@@ -273,22 +275,24 @@ public class AddProductActivity extends AppCompatActivity {
     private void finalizeSave(String name, long price, long discountPrice, String description, String category) {
         if (isEdit && productToEdit != null) {
             fillProductData(productToEdit, name, price, discountPrice, description, category);
-            dbHelper.updateProduct(productToEdit);
-            Toast.makeText(this, "Cập nhật thành công!", Toast.LENGTH_SHORT).show();
-            finish();
+            productDAO.updateProduct(productToEdit).addOnSuccessListener(aVoid -> {
+                Toast.makeText(this, "Cập nhật thành công!", Toast.LENGTH_SHORT).show();
+                finish();
+            }).addOnFailureListener(e -> {
+                Toast.makeText(this, "Lỗi khi cập nhật Firebase: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
         } else {
             Product newProduct = new Product();
             fillProductData(newProduct, name, price, discountPrice, description, category);
             newProduct.setRating(5);
             newProduct.setSoldQuantity(0);
             
-            long result = dbHelper.addProduct(newProduct);
-            if (result != -1) {
-                Toast.makeText(this, "Đã thêm sản phẩm thành công!", Toast.LENGTH_SHORT).show();
+            productDAO.addProduct(newProduct).addOnSuccessListener(aVoid -> {
+                Toast.makeText(this, "Đã thêm sản phẩm thành công vào Firebase!", Toast.LENGTH_SHORT).show();
                 finish();
-            } else {
-                Toast.makeText(this, "Lỗi: Không thể lưu sản phẩm vào database!", Toast.LENGTH_LONG).show();
-            }
+            }).addOnFailureListener(e -> {
+                Toast.makeText(this, "Lỗi khi thêm vào Firebase: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            });
         }
     }
 
