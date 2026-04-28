@@ -181,6 +181,54 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- Recommendation Section -->
+            <TextView
+                android:id="@+id/tv_title_recommendations"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"
+                android:text="GỢI Ý RIÊNG CHO BẠN"
+                android:textColor="@android:color/holo_blue_dark"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <com.example.myapplication.NonScrollListView
+                android:id="@+id/lv_recommendations"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:divider="@android:color/transparent"
+                android:dividerHeight="0dp"
+                android:padding="8dp"
+                android:clipToPadding="false"
+                android:visibility="gone" />
+
+            <!-- Recently Viewed Section -->
+            <TextView
+                android:id="@+id/tv_title_recent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"
+                android:text="SẢN PHẨM VỪA XEM"
+                android:textColor="#FF9800"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <com.example.myapplication.NonScrollListView
+                android:id="@+id/lv_recent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:divider="@android:color/transparent"
+                android:dividerHeight="0dp"
+                android:padding="8dp"
+                android:clipToPadding="false"
+                android:visibility="gone" />
+
             <!-- 4. Main Product List Title -->
             <TextView
                 android:layout_width="wrap_content"
@@ -188,7 +236,7 @@
                 android:layout_marginStart="16dp"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="8dp"
-                android:text="GỢI Ý CHO BẠN"
+                android:text="SẢN PHẨM"
                 android:textColor="@color/black"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -243,8 +291,6 @@
                 android:dividerHeight="0dp"
                 android:padding="8dp"
                 android:clipToPadding="false" />
-
-
 
             <!-- FAQ Section Title -->
             <TextView
