@@ -31,7 +31,7 @@ import java.util.List;
 public class AddProductActivity extends AppCompatActivity {
 
     private static final String TAG = "AddProductActivity";
-    private TextInputEditText etName, etPrice, etDiscountPrice, etDescription, etImages;
+    private TextInputEditText etName, etPrice, etDiscountPrice, etDescription, etImages, etWarrantyMonths;
     private TextInputLayout tilImages;
     private TextInputEditText etScreen, etCpu, etRam, etRom, etBattery;
     private CheckBox cbBestSeller, cbNewArrival, cbHotDiscount;
@@ -125,6 +125,7 @@ public class AddProductActivity extends AppCompatActivity {
         etDiscountPrice = findViewById(R.id.et_discount_price);
         etDescription = findViewById(R.id.et_description);
         etImages = findViewById(R.id.et_images);
+        etWarrantyMonths = findViewById(R.id.et_warranty_months);
         tilImages = (TextInputLayout) etImages.getParent().getParent();
         
         tilImages.setEndIconMode(TextInputLayout.END_ICON_CUSTOM);
@@ -196,6 +197,10 @@ public class AddProductActivity extends AppCompatActivity {
             etDiscountPrice.setText(String.valueOf(productToEdit.getDiscountPrice()));
             etDescription.setText(productToEdit.getDescription());
             
+            if (productToEdit.getWarranty() != null) {
+                etWarrantyMonths.setText(productToEdit.getWarranty().replace(" tháng", ""));
+            }
+
             selectedImagesList.clear();
             if (productToEdit.getImages() != null) {
                 selectedImagesList.addAll(productToEdit.getImages());
@@ -223,6 +228,7 @@ public class AddProductActivity extends AppCompatActivity {
         String priceStr = etPrice.getText().toString().trim();
         String discountPriceStr = etDiscountPrice.getText().toString().trim();
         String description = etDescription.getText().toString().trim();
+        String warrantyMonths = etWarrantyMonths.getText().toString().trim();
         Object selectedItem = spinnerCategory.getSelectedItem();
         String category = selectedItem != null ? selectedItem.toString() : "Khác";
 
@@ -247,7 +253,7 @@ public class AddProductActivity extends AppCompatActivity {
             return;
         }
 
-        finalizeSave(name, price, discountPrice, description, category);
+        finalizeSave(name, price, discountPrice, description, category, warrantyMonths);
     }
 
     private String saveImageToInternalStorage(Uri uri) {
@@ -272,9 +278,9 @@ public class AddProductActivity extends AppCompatActivity {
         }
     }
 
-    private void finalizeSave(String name, long price, long discountPrice, String description, String category) {
+    private void finalizeSave(String name, long price, long discountPrice, String description, String category, String warrantyMonths) {
         if (isEdit && productToEdit != null) {
-            fillProductData(productToEdit, name, price, discountPrice, description, category);
+            fillProductData(productToEdit, name, price, discountPrice, description, category, warrantyMonths);
             productDAO.updateProduct(productToEdit).addOnSuccessListener(aVoid -> {
                 Toast.makeText(this, "Cập nhật thành công!", Toast.LENGTH_SHORT).show();
                 finish();
@@ -283,7 +289,7 @@ public class AddProductActivity extends AppCompatActivity {
             });
         } else {
             Product newProduct = new Product();
-            fillProductData(newProduct, name, price, discountPrice, description, category);
+            fillProductData(newProduct, name, price, discountPrice, description, category, warrantyMonths);
             newProduct.setRating(5);
             newProduct.setSoldQuantity(0);
             
@@ -296,7 +302,7 @@ public class AddProductActivity extends AppCompatActivity {
         }
     }
 
-    private void fillProductData(Product product, String name, long price, long discountPrice, String description, String category) {
+    private void fillProductData(Product product, String name, long price, long discountPrice, String description, String category, String warrantyMonths) {
         product.setName(name);
         product.setPrice(price);
         product.setDiscountPrice(discountPrice);
@@ -311,5 +317,11 @@ public class AddProductActivity extends AppCompatActivity {
         product.setBestSeller(cbBestSeller.isChecked());
         product.setNewArrival(cbNewArrival.isChecked());
         product.setHotDiscount(cbHotDiscount.isChecked());
+        
+        if (!TextUtils.isEmpty(warrantyMonths)) {
+            product.setWarranty(warrantyMonths + " tháng");
+        } else {
+            product.setWarranty("12 tháng"); // Mặc định nếu không nhập
+        }
     }
 }
