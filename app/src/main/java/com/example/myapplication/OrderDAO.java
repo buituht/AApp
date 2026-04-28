@@ -1,97 +1,52 @@
 package com.example.myapplication;
 
-import android.content.ContentValues;
-import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import java.util.ArrayList;
-import java.util.List;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.QuerySnapshot;
 
 public class OrderDAO {
-    private SQLiteDatabase db;
-    private DatabaseHelper dbHelper;
-    private final Gson gson = new Gson();
+    private FirebaseFirestore db;
+    private CollectionReference ordersRef;
 
-    public OrderDAO(Context context) {
-        dbHelper = new DatabaseHelper(context);
+    public OrderDAO() {
+        db = FirebaseFirestore.getInstance();
+        ordersRef = db.collection("orders");
     }
 
-    public void open() {
-        db = dbHelper.getWritableDatabase();
-    }
-
-    public void close() {
-        dbHelper.close();
-    }
-
-    public long addOrder(Order order) {
-        open();
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.KEY_ORDER_ID, order.getOrderId());
-        values.put(DatabaseHelper.KEY_ORDER_USERNAME, order.getUsername());
-        values.put(DatabaseHelper.KEY_ORDER_RECEIVER_NAME, order.getReceiverName());
-        values.put(DatabaseHelper.KEY_ORDER_RECEIVER_PHONE, order.getReceiverPhone());
-        values.put(DatabaseHelper.KEY_ORDER_RECEIVER_ADDRESS, order.getReceiverAddress());
-        values.put(DatabaseHelper.KEY_ORDER_ITEMS_JSON, gson.toJson(order.getItems()));
-        values.put(DatabaseHelper.KEY_ORDER_TOTAL_PRICE, order.getTotalPrice());
-        values.put(DatabaseHelper.KEY_ORDER_STATUS, order.getStatus());
-        values.put(DatabaseHelper.KEY_ORDER_TIMESTAMP, order.getTimestamp());
-        long result = db.insert(DatabaseHelper.TABLE_ORDERS, null, values);
-        close();
-        return result;
-    }
-
-    public void updateOrderStatus(String orderId, String status) {
-        open();
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.KEY_ORDER_STATUS, status);
-        db.update(DatabaseHelper.TABLE_ORDERS, values, DatabaseHelper.KEY_ORDER_ID + " = ?", new String[]{orderId});
-        close();
-    }
-
-    public List<Order> getOrdersByUsername(String username) {
-        open();
-        List<Order> list = new ArrayList<>();
-        Cursor cursor = db.query(DatabaseHelper.TABLE_ORDERS, null, DatabaseHelper.KEY_ORDER_USERNAME + "=?", new String[]{username}, null, null, DatabaseHelper.KEY_ORDER_TIMESTAMP + " DESC");
-        if (cursor.moveToFirst()) {
-            do {
-                list.add(cursorToOrder(cursor));
-            } while (cursor.moveToNext());
+    public Task<Void> addOrder(Order order) {
+        if (order.getOrderId() == null || order.getOrderId().isEmpty()) {
+            order.setOrderId(ordersRef.document().getId());
         }
-        cursor.close();
-        close();
-        return list;
+        return ordersRef.document(order.getOrderId()).set(order);
     }
 
-    public List<Order> getAllOrders() {
-        open();
-        List<Order> list = new ArrayList<>();
-        Cursor cursor = db.query(DatabaseHelper.TABLE_ORDERS, null, null, null, null, null, DatabaseHelper.KEY_ORDER_TIMESTAMP + " DESC");
-        if (cursor.moveToFirst()) {
-            do {
-                list.add(cursorToOrder(cursor));
-            } while (cursor.moveToNext());
-        }
-        cursor.close();
-        close();
-        return list;
+    public Task<Void> updateOrderStatus(String orderId, String status) {
+        return ordersRef.document(orderId).update("status", status);
     }
 
-    private Order cursorToOrder(Cursor cursor) {
-        Order order = new Order();
-        order.setOrderId(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_ORDER_ID)));
-        order.setUsername(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_ORDER_USERNAME)));
-        order.setReceiverName(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_ORDER_RECEIVER_NAME)));
-        order.setReceiverPhone(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_ORDER_RECEIVER_PHONE)));
-        order.setReceiverAddress(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_ORDER_RECEIVER_ADDRESS)));
-        String itemsJson = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_ORDER_ITEMS_JSON));
-        List<Product> items = gson.fromJson(itemsJson, new TypeToken<List<Product>>() {}.getType());
-        order.setItems(items);
-        order.setTotalPrice(cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_ORDER_TOTAL_PRICE)));
-        order.setStatus(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_ORDER_STATUS)));
-        order.setTimestamp(cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.KEY_ORDER_TIMESTAMP)));
-        return order;
+    public Task<DocumentSnapshot> getOrderById(String orderId) {
+        return ordersRef.document(orderId).get();
+    }
+
+    // Lọc theo Email người dùng để chính xác tuyệt đối
+    public Task<QuerySnapshot> getOrdersByUserEmail(String email) {
+        return ordersRef.whereEqualTo("userEmail", email)
+                .get();
+    }
+
+    public Task<QuerySnapshot> getOrdersByUsername(String username) {
+        return ordersRef.whereEqualTo("username", username)
+                .get();
+    }
+
+    public Task<QuerySnapshot> getAllOrders() {
+        return ordersRef.orderBy("timestamp", Query.Direction.DESCENDING).get();
+    }
+    
+    public CollectionReference getCollectionReference() {
+        return ordersRef;
     }
 }
