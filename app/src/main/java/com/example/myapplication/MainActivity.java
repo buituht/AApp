@@ -31,6 +31,7 @@ public class MainActivity extends AppCompatActivity {
     private CategoryDAO categoryDAO;
     private BannerDAO bannerDAO;
     private FaqDAO faqDAO;
+    private RecommendationHelper recommendationHelper;
     
     private List<Product> productList;
     private List<Product> filteredList;
@@ -43,6 +44,11 @@ public class MainActivity extends AppCompatActivity {
     private List<Product> newArrivalList;
     private ProductAdapter newArrivalAdapter;
     private NonScrollListView lvNewArrival;
+
+    private List<Product> recommendedList;
+    private ProductAdapter recommendedAdapter;
+    private NonScrollListView lvRecommendations;
+    private TextView tvTitleRecommendations;
     
     private List<Category> categoryList;
     private HomeCategoryAdapter categoryAdapter;
@@ -80,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
         categoryDAO = new CategoryDAO(this);
         bannerDAO = new BannerDAO(this);
         faqDAO = new FaqDAO(this);
+        recommendationHelper = new RecommendationHelper(this);
 
         initViews();
         setupDataLists();
@@ -90,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
         setupFlashSaleCountdown();
         
         // Load data from Firebase
-        loadProductsFromFirebase(); // Đảm bảo gọi hàm này
+        loadProductsFromFirebase(); 
         loadCategoriesFromFirebase();
         loadBannersFromFirebase();
         loadFaqsFromFirebase();
@@ -110,6 +117,10 @@ public class MainActivity extends AppCompatActivity {
         lvProducts = findViewById(R.id.lv_items);
         lvHotDiscount = findViewById(R.id.lv_hot_discount);
         lvNewArrival = findViewById(R.id.lv_new_arrival);
+        
+        lvRecommendations = findViewById(R.id.lv_recommendations);
+        tvTitleRecommendations = findViewById(R.id.tv_title_recommendations);
+
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         rvCategories = findViewById(R.id.rv_categories);
         rvFaqs = findViewById(R.id.rv_news);
@@ -209,6 +220,7 @@ public class MainActivity extends AppCompatActivity {
         filteredList = new ArrayList<>();
         hotDiscountList = new ArrayList<>();
         newArrivalList = new ArrayList<>();
+        recommendedList = new ArrayList<>();
         categoryList = new ArrayList<>();
         faqList = new ArrayList<>();
         bannerList = new ArrayList<>();
@@ -245,6 +257,10 @@ public class MainActivity extends AppCompatActivity {
         newArrivalAdapter = new ProductAdapter(this, newArrivalList, productActionListener);
         newArrivalAdapter.setShowAdminActions(false);
         lvNewArrival.setAdapter(newArrivalAdapter);
+
+        recommendedAdapter = new ProductAdapter(this, recommendedList, productActionListener);
+        recommendedAdapter.setShowAdminActions(false);
+        lvRecommendations.setAdapter(recommendedAdapter);
         
         categoryAdapter = new HomeCategoryAdapter(categoryList, category -> {
             filterByCategory(category.getName());
@@ -365,6 +381,7 @@ public class MainActivity extends AppCompatActivity {
         if (productAdapter != null) productAdapter.notifyDataSetChanged();
         if (hotDiscountAdapter != null) hotDiscountAdapter.notifyDataSetChanged();
         if (newArrivalAdapter != null) newArrivalAdapter.notifyDataSetChanged();
+        if (recommendedAdapter != null) recommendedAdapter.notifyDataSetChanged();
     }
 
     @Override
@@ -394,7 +411,7 @@ public class MainActivity extends AppCompatActivity {
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
                 Product product = doc.toObject(Product.class);
                 if (product != null) {
-                    product.setId(doc.getId()); // Thiết lập ID từ document
+                    product.setId(doc.getId()); 
                     productList.add(product);
                     if (product.isHotDiscount()) {
                         hotDiscountList.add(product);
@@ -412,10 +429,35 @@ public class MainActivity extends AppCompatActivity {
             
             hotDiscountAdapter.notifyDataSetChanged();
             newArrivalAdapter.notifyDataSetChanged();
+            
+            loadRecommendations();
+            
             filterProducts(etSearch.getText().toString());
         }).addOnFailureListener(e -> {
             Log.e(TAG, "Error loading products", e);
             Toast.makeText(this, "Lỗi khi tải sản phẩm từ Firebase", Toast.LENGTH_SHORT).show();
         });
+    }
+
+    private void loadRecommendations() {
+        String favCategory = recommendationHelper.getMostInterestedCategory();
+        recommendedList.clear();
+        if (favCategory != null && !favCategory.isEmpty()) {
+            for (Product p : productList) {
+                if (favCategory.equalsIgnoreCase(p.getCategory())) {
+                    recommendedList.add(p);
+                }
+                if (recommendedList.size() >= 6) break;
+            }
+        }
+
+        if (recommendedList.isEmpty()) {
+            tvTitleRecommendations.setVisibility(View.GONE);
+            lvRecommendations.setVisibility(View.GONE);
+        } else {
+            tvTitleRecommendations.setVisibility(View.VISIBLE);
+            lvRecommendations.setVisibility(View.VISIBLE);
+            recommendedAdapter.notifyDataSetChanged();
+        }
     }
 }
