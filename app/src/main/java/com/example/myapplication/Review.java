@@ -1,6 +1,7 @@
 package com.example.myapplication;
 
 import java.io.Serializable;
+import java.util.List;
 
 public class Review implements Serializable {
     private String reviewId;
@@ -10,18 +11,20 @@ public class Review implements Serializable {
     private float rating;
     private String comment;
     private long timestamp;
+    private List<String> images; // Thêm trường danh sách hình ảnh
 
     public Review() {
         // Required for Firestore
     }
 
-    public Review(String productId, String userEmail, String userName, float rating, String comment, long timestamp) {
+    public Review(String productId, String userEmail, String userName, float rating, String comment, long timestamp, List<String> images) {
         this.productId = productId;
         this.userEmail = userEmail;
         this.userName = userName;
         this.rating = rating;
         this.comment = comment;
         this.timestamp = timestamp;
+        this.images = images;
     }
 
     // Getters and Setters
@@ -39,4 +42,6 @@ public class Review implements Serializable {
     public void setComment(String comment) { this.comment = comment; }
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+    public List<String> getImages() { return images; }
+    public void setImages(List<String> images) { this.images = images; }
 }
