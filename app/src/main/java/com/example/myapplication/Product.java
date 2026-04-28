@@ -6,12 +6,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Product implements Serializable {
-    private String firebaseId; // Để khớp với trường firebaseId trong ảnh
+    private String firebaseId;
     private String name;
     private long price;
     private long discountPrice;
     private String description;
-    private Object images; // Dùng Object để chấp nhận cả String đơn lẻ hoặc List từ Firebase
+    private Object images;
     private String category;
     private int rating;
     private int soldQuantity;
@@ -24,7 +24,8 @@ public class Product implements Serializable {
     private String rom;
     private String camera;
     private String battery;
-    private Object id; // Chấp nhận cả số (long) hoặc chuỗi (String) từ Firebase
+    private String warranty; // Trường bảo hành mới
+    private Object id;
 
     public Product() {
     }
@@ -46,7 +47,6 @@ public class Product implements Serializable {
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
 
-    // Xử lý linh hoạt: Nếu images là String thì trả về List có 1 phần tử, nếu là List thì trả về chính nó
     public List<String> getImages() {
         if (images instanceof List) {
             return (List<String>) images;
@@ -100,6 +100,9 @@ public class Product implements Serializable {
 
     public String getBattery() { return battery; }
     public void setBattery(String battery) { this.battery = battery; }
+
+    public String getWarranty() { return warranty; }
+    public void setWarranty(String warranty) { this.warranty = warranty; }
 
     public String getId() { return String.valueOf(id); }
     public void setId(Object id) { this.id = id; }
