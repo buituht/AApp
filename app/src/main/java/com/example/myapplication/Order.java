@@ -6,6 +6,7 @@ import java.util.List;
 public class Order implements Serializable {
     private String orderId;
     private String username;
+    private String userEmail; // Thêm trường email để truy vấn chính xác
     private String receiverName;
     private String receiverPhone;
     private String receiverAddress;
@@ -18,9 +19,10 @@ public class Order implements Serializable {
         // Required for Firestore
     }
 
-    public Order(String orderId, String username, String receiverName, String receiverPhone, String receiverAddress, List<Product> items, long totalPrice, String status, long timestamp) {
+    public Order(String orderId, String username, String userEmail, String receiverName, String receiverPhone, String receiverAddress, List<Product> items, long totalPrice, String status, long timestamp) {
         this.orderId = orderId;
         this.username = username;
+        this.userEmail = userEmail;
         this.receiverName = receiverName;
         this.receiverPhone = receiverPhone;
         this.receiverAddress = receiverAddress;
@@ -35,6 +37,9 @@ public class Order implements Serializable {
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
+    public String getUserEmail() { return userEmail; }
+    public void setUserEmail(String userEmail) { this.userEmail = userEmail; }
 
     public String getReceiverName() { return receiverName; }
     public void setReceiverName(String receiverName) { this.receiverName = receiverName; }
