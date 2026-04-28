@@ -122,6 +122,19 @@
             </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_warranty_months"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Thời hạn bảo hành (số tháng)"
+                android:inputType="number"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
         <!-- PRODUCT CLASSIFICATION SECTION -->
         <TextView
             android:layout_width="wrap_content"
