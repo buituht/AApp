@@ -11,9 +11,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
 import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -24,16 +24,17 @@ public class ProfileActivity extends AppCompatActivity {
     private TextView tvLoyaltyPoints, tvTotalSpent, tvMembershipLevel;
     private Button btnLogout;
     private ImageView btnEditProfile, ivAvatar;
-    private TextView tvChangePassword;
+    private TextView tvChangePassword, btnMyWarranties;
     private NonScrollListView lvOrders;
     private BottomNavigationView bottomNavigationView;
-    private DatabaseHelper dbHelper;
+    private OrderDAO orderDAO;
+    private UserDAO userDAO;
     private List<Order> orderList = new ArrayList<>();
     private OrderAdapter orderAdapter;
 
     // Admin buttons
     private LinearLayout layoutAdminPanel;
-    private Button btnManageProducts, btnManageCategories, btnManageBanners, btnManageOrders, btnManageFaq, btnViewReports, btnManageVouchers;
+    private Button btnManageProducts, btnManageCategories, btnManageBanners, btnManageOrders, btnManageFaq, btnViewReports, btnManageVouchers, btnManageWarrantyClaims, btnAdminLookupWarranty;
     private TextView tvLabelOrders;
 
     @Override
@@ -41,14 +42,14 @@ public class ProfileActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile);
 
-        // Kiểm tra đăng nhập
         if (!MainActivity.isLoggedIn) {
             startActivity(new Intent(this, LoginActivity.class));
             finish();
             return;
         }
 
-        dbHelper = new DatabaseHelper(this);
+        orderDAO = new OrderDAO();
+        userDAO = new UserDAO(this);
         initViews();
         displayUserInfo();
         setupBottomNavigation();
@@ -67,6 +68,7 @@ public class ProfileActivity extends AppCompatActivity {
         tvDob = findViewById(R.id.tv_profile_dob);
         ivAvatar = findViewById(R.id.iv_profile_avatar);
         tvChangePassword = findViewById(R.id.tv_change_password);
+        btnMyWarranties = findViewById(R.id.btn_my_warranties);
         tvNoOrders = findViewById(R.id.tv_no_orders);
         lvOrders = findViewById(R.id.lv_profile_orders);
         tvLabelOrders = findViewById(R.id.tv_label_orders);
@@ -79,7 +81,6 @@ public class ProfileActivity extends AppCompatActivity {
         btnEditProfile = findViewById(R.id.btn_edit_profile);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
 
-        // Admin Panel
         layoutAdminPanel = findViewById(R.id.layout_admin_panel);
         btnManageProducts = findViewById(R.id.btn_manage_products);
         btnManageCategories = findViewById(R.id.btn_manage_categories);
@@ -88,6 +89,8 @@ public class ProfileActivity extends AppCompatActivity {
         btnManageFaq = findViewById(R.id.btn_manage_faq);
         btnViewReports = findViewById(R.id.btn_view_reports);
         btnManageVouchers = findViewById(R.id.btn_manage_vouchers);
+        btnManageWarrantyClaims = findViewById(R.id.btn_manage_warranty_claims);
+        btnAdminLookupWarranty = findViewById(R.id.btn_admin_lookup_warranty);
 
         orderAdapter = new OrderAdapter(this, orderList);
         orderAdapter.setOnOrderUpdateListener(this::showUpdateStatusDialog);
@@ -95,6 +98,8 @@ public class ProfileActivity extends AppCompatActivity {
     }
 
     private void showUpdateStatusDialog(Order order) {
+        if (!MainActivity.isAdmin) return; // Chỉ admin mới có quyền đổi status nhanh ở đây
+        
         String[] statuses = {"Đang xử lý", "Đang giao", "Đã giao", "Đã hủy"};
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Cập nhật trạng thái đơn hàng");
@@ -108,11 +113,12 @@ public class ProfileActivity extends AppCompatActivity {
     private void updateOrderStatus(Order order, String newStatus) {
         if (order.getOrderId() == null) return;
         
-        order.setStatus(newStatus);
-        // dbHelper.updateOrderStatus(order.getOrderId(), newStatus);
-        
-        Toast.makeText(this, "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
-        loadOrders();
+        orderDAO.updateOrderStatus(order.getOrderId(), newStatus).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
+            loadOrders();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void updateAdminVisibility() {
@@ -137,10 +143,20 @@ public class ProfileActivity extends AppCompatActivity {
         User user = MainActivity.currentUser;
         if (user == null || MainActivity.isAdmin) return;
 
-        orderList.clear();
-        orderList.addAll(dbHelper.getOrdersByUsername(user.getUsername()));
-        orderAdapter.notifyDataSetChanged();
-        tvNoOrders.setVisibility(orderList.isEmpty() ? View.VISIBLE : View.GONE);
+        orderDAO.getOrdersByUsername(user.getUsername()).addOnSuccessListener(queryDocumentSnapshots -> {
+            orderList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Order order = doc.toObject(Order.class);
+                if (order != null) {
+                    order.setOrderId(doc.getId());
+                    orderList.add(order);
+                }
+            }
+            orderAdapter.notifyDataSetChanged();
+            tvNoOrders.setVisibility(orderList.isEmpty() ? View.VISIBLE : View.GONE);
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi tải đơn hàng: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void setupClickListeners() {
@@ -157,15 +173,16 @@ public class ProfileActivity extends AppCompatActivity {
 
         btnEditProfile.setOnClickListener(v -> startActivity(new Intent(this, EditProfileActivity.class)));
         tvChangePassword.setOnClickListener(v -> startActivity(new Intent(this, ChangePasswordActivity.class)));
+        btnMyWarranties.setOnClickListener(v -> startActivity(new Intent(this, MyWarrantiesActivity.class)));
 
-        // Admin Click Listeners
         btnManageProducts.setOnClickListener(v -> startActivity(new Intent(this, ProductAdminActivity.class)));
         btnManageCategories.setOnClickListener(v -> startActivity(new Intent(this, AddCategoryActivity.class)));
         btnManageBanners.setOnClickListener(v -> startActivity(new Intent(this, BannerAdminActivity.class)));
         btnManageFaq.setOnClickListener(v -> startActivity(new Intent(this, FaqAdminActivity.class)));
         btnManageOrders.setOnClickListener(v -> startActivity(new Intent(this, OrderAdminActivity.class)));
         btnManageVouchers.setOnClickListener(v -> startActivity(new Intent(this, VoucherAdminActivity.class)));
-        
+        btnManageWarrantyClaims.setOnClickListener(v -> startActivity(new Intent(this, WarrantyClaimAdminActivity.class)));
+        btnAdminLookupWarranty.setOnClickListener(v -> startActivity(new Intent(this, AdminWarrantyLookupActivity.class)));
         btnViewReports.setOnClickListener(v -> startActivity(new Intent(this, ReportActivity.class)));
     }
 
@@ -180,7 +197,6 @@ public class ProfileActivity extends AppCompatActivity {
             tvGender.setText("Giới tính: " + (user.getGender() != null ? user.getGender() : "Chưa cập nhật"));
             tvDob.setText("Ngày sinh: " + (user.getDob() != null ? user.getDob() : "Chưa cập nhật"));
 
-            // Loyalty info
             tvLoyaltyPoints.setText(String.valueOf(user.getPoints()));
             tvTotalSpent.setText(String.format(Locale.getDefault(), "%,d VNĐ", user.getTotalSpent()));
             
