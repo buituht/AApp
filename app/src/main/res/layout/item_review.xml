@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -50,6 +51,16 @@
         android:text="Comment here..."
         android:textColor="@color/black"
         android:textSize="14sp" />
+
+    <!-- RecyclerView hiển thị ảnh trong đánh giá -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_review_images"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
     <View
         android:layout_width="match_parent"
