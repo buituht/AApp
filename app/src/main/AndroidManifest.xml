@@ -16,7 +16,6 @@
         <package android:name="com.google.android.gms" />
         <package android:name="com.android.vending" />
 
-        <!-- Generic intent for services -->
         <intent>
             <action android:name="com.google.android.gms.auth.service.START" />
         </intent>
@@ -24,7 +23,9 @@
             <action android:name="com.google.android.gms.common.service.START" />
         </intent>
         <intent>
-            <action android:name="android.speech.RecognitionService" />
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
         </intent>
     </queries>
 
@@ -39,7 +40,6 @@
         android:theme="@style/Theme.MyApplication"
         android:usesCleartextTraffic="true">
 
-        <!-- Explicitly define Google Play Services version -->
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
@@ -72,6 +72,10 @@
         <activity android:name=".OrderAdminActivity" android:exported="false" />
         <activity android:name=".ReportActivity" android:exported="false" />
         <activity android:name=".VoucherAdminActivity" android:exported="false" />
+        <activity android:name=".MyWarrantiesActivity" android:exported="false" />
+        <activity android:name=".WarrantyDetailActivity" android:exported="false" />
+        <activity android:name=".WarrantyClaimAdminActivity" android:exported="false" />
+        <activity android:name=".AdminWarrantyLookupActivity" android:exported="false" />
 
     </application>
 
