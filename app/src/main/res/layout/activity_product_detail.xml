@@ -241,6 +241,19 @@
                         android:text="Pin: --"
                         android:textColor="@color/black"
                         android:padding="8dp"/>
+
+                    <TextView
+                        android:id="@+id/tv_spec_warranty"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_columnWeight="1"
+                        android:drawableStart="@android:drawable/ic_menu_agenda"
+                        android:drawablePadding="12dp"
+                        android:gravity="center_vertical"
+                        android:text="Bảo hành: --"
+                        android:textColor="@color/black"
+                        android:padding="8dp"
+                        app:tint="@color/black"/>
                 </GridLayout>
 
                 <View
@@ -349,6 +362,31 @@
                         android:textSize="14sp"
                         android:minLines="3"
                         android:gravity="top"/>
+
+                    <!-- Link ảnh đánh giá -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/til_review_images"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        app:endIconMode="custom"
+                        app:endIconDrawable="@android:drawable/ic_input_add">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/et_review_images"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Dán link hình ảnh tại đây..."
+                            android:textSize="14sp"
+                            android:inputType="textUri" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Danh sách ảnh đã chọn cho Review -->
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rv_review_selected_images"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_submit_review"
