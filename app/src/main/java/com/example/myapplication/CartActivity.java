@@ -26,6 +26,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,6 +42,8 @@ public class CartActivity extends AppCompatActivity {
     private CartAdapter adapter;
     private DatabaseHelper dbHelper;
     private UserDAO userDAO;
+    private WarrantyDAO warrantyDAO;
+    private OrderDAO orderDAO;
     private Voucher appliedVoucher = null;
 
     @Override
@@ -50,6 +53,8 @@ public class CartActivity extends AppCompatActivity {
 
         dbHelper = new DatabaseHelper(this);
         userDAO = new UserDAO(this);
+        warrantyDAO = new WarrantyDAO();
+        orderDAO = new OrderDAO();
         initViews();
         loadUserInfo();
         setupAddressSelection();
@@ -121,13 +126,11 @@ public class CartActivity extends AppCompatActivity {
         long amount = calculateTotal();
         tvAmount.setText(String.format("%,d VNĐ", amount));
 
-        // Sử dụng VietQR API để tạo mã QR thật (Vui lòng thay bằng STK của bạn)
-        String bankId = "vcb"; // Vietcombank
-        String accountNo = "1052593134"; // Thay bằng số tài khoản thật của bạn
-        String accountName = "BUI THANH TU"; // Tên chủ tài khoản
+        String bankId = "vcb";
+        String accountNo = "1052593134";
+        String accountName = "BUI THANH TU";
         String description = "Thanh toan don hang " + UUID.randomUUID().toString().substring(0, 8);
         
-        // URL format VietQR: https://img.vietqr.io/image/<BANK_ID>-<ACCOUNT_NO>-<TEMPLATE>.png?amount=<AMOUNT>&addInfo=<DESCRIPTION>&accountName=<ACCOUNT_NAME>
         String qrUrl = String.format("https://img.vietqr.io/image/%s-%s-compact.png?amount=%d&addInfo=%s&accountName=%s",
                 bankId, accountNo, amount, description, accountName);
 
@@ -136,7 +139,6 @@ public class CartActivity extends AppCompatActivity {
                 .placeholder(R.drawable.ic_ball)
                 .into(imgQR);
 
-        // Animation cho đường quét QR
         ObjectAnimator animator = ObjectAnimator.ofFloat(scanLine, "translationY", 0f, 600f);
         animator.setDuration(2000);
         animator.setInterpolator(new LinearInterpolator());
@@ -147,7 +149,6 @@ public class CartActivity extends AppCompatActivity {
                 .setNegativeButton("Hủy giao dịch", (d, w) -> animator.cancel())
                 .create();
 
-        // Giả lập xác nhận thanh toán (Trong thực tế bạn cần lắng nghe biến động số dư qua Webhook/API)
         new Handler().postDelayed(() -> {
             if (dialog.isShowing()) {
                 animator.cancel();
@@ -162,7 +163,7 @@ public class CartActivity extends AppCompatActivity {
                     }
                 }, 3000);
             }
-        }, 8000); // Tăng thời gian chờ để trông thực tế hơn
+        }, 8000);
 
         dialog.show();
     }
@@ -176,9 +177,11 @@ public class CartActivity extends AppCompatActivity {
         String fullOrderId = UUID.randomUUID().toString();
         String shortOrderId = fullOrderId.substring(0, 8).toUpperCase();
         
+        // CẬP NHẬT: Thêm email người dùng vào đơn hàng
         Order newOrder = new Order(
                 fullOrderId,
                 MainActivity.currentUser.getUsername(),
+                MainActivity.currentUser.getEmail(),
                 name,
                 phone,
                 address,
@@ -188,17 +191,65 @@ public class CartActivity extends AppCompatActivity {
                 System.currentTimeMillis()
         );
 
-        long result = dbHelper.addOrder(newOrder);
-        if (result != -1) {
+        orderDAO.addOrder(newOrder).addOnSuccessListener(aVoid -> {
             updateLoyaltyInfo(finalTotal);
+            createWarrantyCards(newOrder);
             showSuccessDialog(shortOrderId);
             cartItemList.clear();
             appliedVoucher = null;
             updateTotal();
             adapter.notifyDataSetChanged();
-        } else {
-            Toast.makeText(this, "Lỗi hệ thống khi lưu đơn hàng!", Toast.LENGTH_SHORT).show();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi khi lưu đơn hàng lên Firebase: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void createWarrantyCards(Order order) {
+        for (Product product : order.getItems()) {
+            String warrantyInfo = product.getWarranty();
+            if (warrantyInfo == null || warrantyInfo.isEmpty()) continue;
+
+            long activationDate = System.currentTimeMillis();
+            long expiryDate = calculateExpiryDate(activationDate, warrantyInfo);
+
+            WarrantyCard card = new WarrantyCard(
+                    null,
+                    order.getOrderId(),
+                    product.getId(),
+                    product.getName(),
+                    MainActivity.currentUser.getEmail(),
+                    MainActivity.currentUser.getUsername(),
+                    activationDate,
+                    expiryDate,
+                    "Active",
+                    warrantyInfo
+            );
+
+            warrantyDAO.createWarrantyCard(card).addOnFailureListener(e -> {
+                android.util.Log.e("CartActivity", "Error creating warranty card: " + e.getMessage());
+            });
         }
+    }
+
+    private long calculateExpiryDate(long activationDate, String warrantyInfo) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(activationDate);
+        
+        String info = warrantyInfo.toLowerCase();
+        try {
+            if (info.contains("tháng")) {
+                int months = Integer.parseInt(info.replaceAll("[^0-9]", ""));
+                cal.add(Calendar.MONTH, months);
+            } else if (info.contains("năm")) {
+                int years = Integer.parseInt(info.replaceAll("[^0-9]", ""));
+                cal.add(Calendar.YEAR, years);
+            } else {
+                cal.add(Calendar.YEAR, 1); // Mặc định 1 năm
+            }
+        } catch (Exception e) {
+            cal.add(Calendar.YEAR, 1);
+        }
+        return cal.getTimeInMillis();
     }
 
     private void updateLoyaltyInfo(long amountSpent) {
@@ -214,7 +265,7 @@ public class CartActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Thanh toán thành công!");
         builder.setMessage("Đơn hàng #" + orderId + " của bạn đã được thanh toán qua QR Code.\n\n" +
-                "Cảm ơn bạn đã mua sắm!");
+                "Phiếu bảo hành điện tử đã được kích hoạt.");
         builder.setPositiveButton("Về trang chủ", (dialog, which) -> finish());
         builder.setCancelable(false);
         builder.show();
