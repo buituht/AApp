@@ -32,6 +32,7 @@ public class MainActivity extends AppCompatActivity {
     private BannerDAO bannerDAO;
     private FaqDAO faqDAO;
     private RecommendationHelper recommendationHelper;
+    private GeminiRecommendationService geminiService;
     
     private List<Product> productList;
     private List<Product> filteredList;
@@ -87,6 +88,7 @@ public class MainActivity extends AppCompatActivity {
         bannerDAO = new BannerDAO(this);
         faqDAO = new FaqDAO(this);
         recommendationHelper = new RecommendationHelper(this);
+        geminiService = new GeminiRecommendationService();
 
         initViews();
         setupDataLists();
@@ -96,14 +98,12 @@ public class MainActivity extends AppCompatActivity {
         setupSearch();
         setupFlashSaleCountdown();
         
-        // Load data from Firebase
         loadProductsFromFirebase(); 
         loadCategoriesFromFirebase();
         loadBannersFromFirebase();
         loadFaqsFromFirebase();
         updateUIBasedOnLoginStatus();
 
-        // Tạo tài khoản admin (Chỉ cần chạy một lần)
         AdminCreator.createAdminAccount();
     }
 
@@ -127,7 +127,6 @@ public class MainActivity extends AppCompatActivity {
         vpBanners = findViewById(R.id.vp_banners);
         
         findViewById(R.id.btn_cart).setOnClickListener(v -> startActivity(new Intent(this, CartActivity.class)));
-        findViewById(R.id.btn_notification).setOnClickListener(v -> Toast.makeText(this, "Bạn có 1 thông báo mới về đơn hàng!", Toast.LENGTH_SHORT).show());
     }
 
     private void loadBannersFromFirebase() {
@@ -144,7 +143,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupAutoSlide() {
         if (bannerRunnable != null) bannerHandler.removeCallbacks(bannerRunnable);
-        
         bannerRunnable = new Runnable() {
             @Override
             public void run() {
@@ -178,9 +176,7 @@ public class MainActivity extends AppCompatActivity {
                 int h = seconds / 3600;
                 int m = (seconds % 3600) / 60;
                 int s = seconds % 60;
-                if (tvCountdown != null) {
-                    tvCountdown.setText(String.format("%02d : %02d : %02d", h, m, s));
-                }
+                if (tvCountdown != null) tvCountdown.setText(String.format("%02d : %02d : %02d", h, m, s));
                 if (seconds > 0) {
                     seconds--;
                     handler.postDelayed(this, 1000);
@@ -262,9 +258,7 @@ public class MainActivity extends AppCompatActivity {
         recommendedAdapter.setShowAdminActions(false);
         lvRecommendations.setAdapter(recommendedAdapter);
         
-        categoryAdapter = new HomeCategoryAdapter(categoryList, category -> {
-            filterByCategory(category.getName());
-        });
+        categoryAdapter = new HomeCategoryAdapter(categoryList, category -> filterByCategory(category.getName()));
         rvCategories.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         rvCategories.setAdapter(categoryAdapter);
 
@@ -290,9 +284,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateCartBadge() {
-        if (tvCartCount != null) {
-            tvCartCount.setText(String.valueOf(CartActivity.cartItemList.size()));
-        }
+        if (tvCartCount != null) tvCartCount.setText(String.valueOf(CartActivity.cartItemList.size()));
     }
 
     private void setupSearch() {
@@ -300,9 +292,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                filterProducts(s.toString());
-            }
+            public void onTextChanged(CharSequence s, int start, int before, int count) { filterProducts(s.toString()); }
             @Override
             public void afterTextChanged(Editable s) {}
         });
@@ -314,9 +304,7 @@ public class MainActivity extends AppCompatActivity {
             filteredList.addAll(productList);
         } else {
             for (Product p : productList) {
-                if (p.getName().toLowerCase().contains(query.toLowerCase())) {
-                    filteredList.add(p);
-                }
+                if (p.getName().toLowerCase().contains(query.toLowerCase())) filteredList.add(p);
             }
         }
         productAdapter.notifyDataSetChanged();
@@ -324,35 +312,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupBottomNavigation() {
         bottomNavigationView.setSelectedItemId(R.id.nav_home);
-        android.view.Menu menu = bottomNavigationView.getMenu();
-        if (menu.findItem(R.id.nav_favorites) != null) {
-            menu.findItem(R.id.nav_favorites).setVisible(isLoggedIn);
-        }
-        if (menu.findItem(R.id.nav_register) != null) {
-            menu.findItem(R.id.nav_register).setVisible(!isLoggedIn);
-        }
-        
         bottomNavigationView.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.nav_home) return true;
-            if (itemId == R.id.nav_products) {
-                startActivity(new Intent(this, ProductListActivity.class));
-                return true;
-            }
-            if (itemId == R.id.nav_favorites) {
-                startActivity(new Intent(this, FavoriteActivity.class));
-                return true;
-            }
-            if (itemId == R.id.nav_register) {
-                startActivity(new Intent(this, RegisterActivity.class));
-                return true;
-            }
+            if (itemId == R.id.nav_products) { startActivity(new Intent(this, ProductListActivity.class)); return true; }
+            if (itemId == R.id.nav_favorites) { startActivity(new Intent(this, FavoriteActivity.class)); return true; }
             if (itemId == R.id.nav_profile) {
-                if (isLoggedIn) {
-                    startActivity(new Intent(this, ProfileActivity.class));
-                } else {
-                    startActivity(new Intent(this, LoginActivity.class));
-                }
+                if (isLoggedIn) startActivity(new Intent(this, ProfileActivity.class));
+                else startActivity(new Intent(this, LoginActivity.class));
                 return true;
             }
             return false;
@@ -362,22 +329,15 @@ public class MainActivity extends AppCompatActivity {
     private void setupClickListeners() {
         btnLoginNav.setOnClickListener(v -> startActivity(new Intent(this, LoginActivity.class)));
         btnLogout.setOnClickListener(v -> {
-            isLoggedIn = false;
-            isAdmin = false;
-            currentUser = null;
+            isLoggedIn = false; isAdmin = false; currentUser = null;
             updateUIBasedOnLoginStatus();
             setupBottomNavigation();
         });
     }
 
     private void updateUIBasedOnLoginStatus() {
-        if (isLoggedIn) {
-            btnLoginNav.setVisibility(View.GONE);
-            btnLogout.setVisibility(View.VISIBLE);
-        } else {
-            btnLoginNav.setVisibility(View.VISIBLE);
-            btnLogout.setVisibility(View.GONE);
-        }
+        if (isLoggedIn) { btnLoginNav.setVisibility(View.GONE); btnLogout.setVisibility(View.VISIBLE); }
+        else { btnLoginNav.setVisibility(View.VISIBLE); btnLogout.setVisibility(View.GONE); }
         if (productAdapter != null) productAdapter.notifyDataSetChanged();
         if (hotDiscountAdapter != null) hotDiscountAdapter.notifyDataSetChanged();
         if (newArrivalAdapter != null) newArrivalAdapter.notifyDataSetChanged();
@@ -404,53 +364,81 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadProductsFromFirebase() {
         productDAO.getAllProducts().addOnSuccessListener(queryDocumentSnapshots -> {
-            productList.clear();
-            hotDiscountList.clear();
-            newArrivalList.clear();
-            
+            productList.clear(); hotDiscountList.clear(); newArrivalList.clear();
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                Product product = doc.toObject(Product.class);
-                if (product != null) {
-                    product.setId(doc.getId()); 
-                    productList.add(product);
-                    if (product.isHotDiscount()) {
-                        hotDiscountList.add(product);
-                    }
-                    if (product.isNewArrival()) {
-                        newArrivalList.add(product);
-                    }
+                Product p = doc.toObject(Product.class);
+                if (p != null) {
+                    p.setId(doc.getId()); productList.add(p);
+                    if (p.isHotDiscount()) hotDiscountList.add(p);
+                    if (p.isNewArrival()) newArrivalList.add(p);
                 }
             }
-            
-            if (findViewById(R.id.tv_title_hot_discount) != null)
-                findViewById(R.id.tv_title_hot_discount).setVisibility(hotDiscountList.isEmpty() ? View.GONE : View.VISIBLE);
-            if (findViewById(R.id.tv_title_new_arrival) != null)
-                findViewById(R.id.tv_title_new_arrival).setVisibility(newArrivalList.isEmpty() ? View.GONE : View.VISIBLE);
-            
+            if (findViewById(R.id.tv_title_hot_discount) != null) findViewById(R.id.tv_title_hot_discount).setVisibility(hotDiscountList.isEmpty() ? View.GONE : View.VISIBLE);
+            if (findViewById(R.id.tv_title_new_arrival) != null) findViewById(R.id.tv_title_new_arrival).setVisibility(newArrivalList.isEmpty() ? View.GONE : View.VISIBLE);
             hotDiscountAdapter.notifyDataSetChanged();
             newArrivalAdapter.notifyDataSetChanged();
-            
             loadRecommendations();
-            
             filterProducts(etSearch.getText().toString());
-        }).addOnFailureListener(e -> {
-            Log.e(TAG, "Error loading products", e);
-            Toast.makeText(this, "Lỗi khi tải sản phẩm từ Firebase", Toast.LENGTH_SHORT).show();
-        });
+        }).addOnFailureListener(e -> Log.e(TAG, "Error loading products", e));
     }
 
     private void loadRecommendations() {
+        List<String> viewedIds = recommendationHelper.getViewedProductIds();
+        if (viewedIds.isEmpty()) {
+            loadLegacyRecommendations();
+            return;
+        }
+
+        List<Product> viewedHistory = new ArrayList<>();
+        for (String id : viewedIds) {
+            for (Product p : productList) {
+                if (p.getId().equals(id)) {
+                    viewedHistory.add(p);
+                    break;
+                }
+            }
+        }
+
+        tvTitleRecommendations.setText("Gợi ý riêng cho bạn (AI)");
+        geminiService.getRecommendations(viewedHistory, productList, new GeminiRecommendationService.RecommendationCallback() {
+            @Override
+            public void onRecommendationReceived(List<String> recommendedProductIds) {
+                runOnUiThread(() -> {
+                    recommendedList.clear();
+                    for (String id : recommendedProductIds) {
+                        for (Product p : productList) {
+                            if (p.getId().equals(id)) {
+                                recommendedList.add(p);
+                                break;
+                            }
+                        }
+                    }
+                    updateRecommendationUI();
+                });
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                Log.e(TAG, "Gemini Error, fallback to legacy", t);
+                runOnUiThread(() -> loadLegacyRecommendations());
+            }
+        });
+    }
+
+    private void loadLegacyRecommendations() {
+        tvTitleRecommendations.setText("Gợi ý riêng cho bạn");
         String favCategory = recommendationHelper.getMostInterestedCategory();
         recommendedList.clear();
         if (favCategory != null && !favCategory.isEmpty()) {
             for (Product p : productList) {
-                if (favCategory.equalsIgnoreCase(p.getCategory())) {
-                    recommendedList.add(p);
-                }
+                if (favCategory.equalsIgnoreCase(p.getCategory())) recommendedList.add(p);
                 if (recommendedList.size() >= 6) break;
             }
         }
+        updateRecommendationUI();
+    }
 
+    private void updateRecommendationUI() {
         if (recommendedList.isEmpty()) {
             tvTitleRecommendations.setVisibility(View.GONE);
             lvRecommendations.setVisibility(View.GONE);
