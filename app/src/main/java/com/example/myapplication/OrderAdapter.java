@@ -15,10 +15,11 @@ import java.util.Locale;
 public class OrderAdapter extends BaseAdapter {
     private Context context;
     private List<Order> orderList;
-    private OnOrderUpdateListener listener;
+    private OnOrderActionListener listener;
 
-    public interface OnOrderUpdateListener {
+    public interface OnOrderActionListener {
         void onUpdateStatus(Order order);
+        void onCancelOrder(Order order);
     }
 
     public OrderAdapter(Context context, List<Order> orderList) {
@@ -26,7 +27,7 @@ public class OrderAdapter extends BaseAdapter {
         this.orderList = orderList;
     }
 
-    public void setOnOrderUpdateListener(OnOrderUpdateListener listener) {
+    public void setOnOrderActionListener(OnOrderActionListener listener) {
         this.listener = listener;
     }
 
@@ -50,6 +51,7 @@ public class OrderAdapter extends BaseAdapter {
         TextView tvTotal = convertView.findViewById(R.id.tv_order_total);
         TextView tvDate = convertView.findViewById(R.id.tv_order_date);
         Button btnUpdateStatus = convertView.findViewById(R.id.btn_update_status);
+        Button btnCancelOrder = convertView.findViewById(R.id.btn_cancel_order);
 
         tvId.setText("Mã ĐH: #" + (order.getOrderId() != null && order.getOrderId().length() > 8 ? order.getOrderId().substring(0, 8).toUpperCase() : order.getOrderId()));
         tvStatus.setText(order.getStatus());
@@ -70,6 +72,7 @@ public class OrderAdapter extends BaseAdapter {
 
         if (MainActivity.isAdmin) {
             btnUpdateStatus.setVisibility(View.VISIBLE);
+            btnCancelOrder.setVisibility(View.GONE);
             btnUpdateStatus.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onUpdateStatus(order);
@@ -77,6 +80,17 @@ public class OrderAdapter extends BaseAdapter {
             });
         } else {
             btnUpdateStatus.setVisibility(View.GONE);
+            // Người dùng chỉ có thể hủy nếu trạng thái là "Đang xử lý"
+            if ("Đang xử lý".equals(order.getStatus())) {
+                btnCancelOrder.setVisibility(View.VISIBLE);
+                btnCancelOrder.setOnClickListener(v -> {
+                    if (listener != null) {
+                        listener.onCancelOrder(order);
+                    }
+                });
+            } else {
+                btnCancelOrder.setVisibility(View.GONE);
+            }
         }
 
         return convertView;
