@@ -71,15 +71,29 @@
             android:text="Ngày đặt: 01/01/2024"
             android:textSize="10sp" />
 
-        <Button
-            android:id="@+id/btn_update_status"
-            style="@style/Widget.MaterialComponents.Button.TextButton"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end"
-            android:layout_marginTop="4dp"
-            android:text="Cập nhật trạng thái"
-            android:visibility="gone" />
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_cancel_order"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Hủy đơn hàng"
+                android:textColor="@android:color/holo_red_dark"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btn_update_status"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cập nhật trạng thái"
+                android:visibility="gone" />
+        </LinearLayout>
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>
