@@ -113,9 +113,9 @@ public class MyWarrantiesActivity extends AppCompatActivity {
                             card.setExpiryDate(cal.getTimeInMillis());
                             
                             if (System.currentTimeMillis() < card.getExpiryDate()) {
-                                card.setStatus("Active");
+                                card.setStatus("Còn hiệu lực");
                             } else {
-                                card.setStatus("Expired");
+                                card.setStatus("Hết hạn");
                             }
                             allWarranties.add(card);
                         }
@@ -171,11 +171,13 @@ public class MyWarrantiesActivity extends AppCompatActivity {
             
             tvProductName.setText(card.getProductName());
             
-            long diff = card.getExpiryDate() - System.currentTimeMillis();
-            if (diff > 0) {
-                long days = TimeUnit.MILLISECONDS.toDays(diff);
+            // Cập nhật trạng thái hiển thị mượt mà
+            if ("Còn hiệu lực".equals(card.getStatus())) {
                 tvStatus.setText("Đang bảo hành");
                 tvStatus.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
+                
+                long diff = card.getExpiryDate() - System.currentTimeMillis();
+                long days = TimeUnit.MILLISECONDS.toDays(diff);
                 if (tvTimeLeft != null) tvTimeLeft.setText("Còn lại: " + days + " ngày");
             } else {
                 tvStatus.setText("Hết hạn");
