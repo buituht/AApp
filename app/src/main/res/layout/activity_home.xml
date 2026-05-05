@@ -145,68 +145,26 @@
                 </FrameLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- 2. Categories -->
-            <HorizontalScrollView
+            <!-- 2. Categories Dynamic -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:text="DANH MỤC"
+                android:textColor="@color/black"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_categories_home"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:scrollbars="none"
-                android:paddingBottom="12dp">
-                <LinearLayout
-                    android:id="@+id/layout_categories_home"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="12dp">
-
-                    <TextView
-                        android:id="@+id/cat_all_home"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Tất cả"
-                        android:paddingHorizontal="16dp"
-                        android:paddingVertical="8dp"
-                        android:layout_margin="4dp"
-                        android:background="@drawable/rounded_input_bg"
-                        android:textColor="@color/black"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/cat_apple_home"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Apple"
-                        android:paddingHorizontal="16dp"
-                        android:paddingVertical="8dp"
-                        android:layout_margin="4dp"
-                        android:background="@drawable/rounded_input_bg"
-                        android:textColor="@color/black"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/cat_samsung_home"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Samsung"
-                        android:paddingHorizontal="16dp"
-                        android:paddingVertical="8dp"
-                        android:layout_margin="4dp"
-                        android:background="@drawable/rounded_input_bg"
-                        android:textColor="@color/black"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/cat_xiaomi_home"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Xiaomi"
-                        android:paddingHorizontal="16dp"
-                        android:paddingVertical="8dp"
-                        android:layout_margin="4dp"
-                        android:background="@drawable/rounded_input_bg"
-                        android:textColor="@color/black"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </HorizontalScrollView>
+                android:orientation="horizontal"
+                android:paddingHorizontal="8dp"
+                android:clipToPadding="false"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
             <!-- 3. Flash Sale Section -->
             <LinearLayout
@@ -215,6 +173,7 @@
                 android:background="@android:color/white"
                 android:orientation="vertical"
                 android:padding="12dp"
+                android:layout_marginTop="12dp"
                 android:layout_marginBottom="12dp">
                 <LinearLayout
                     android:layout_width="match_parent"
