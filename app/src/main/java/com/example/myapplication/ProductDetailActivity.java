@@ -2,7 +2,9 @@ package com.example.myapplication;
 
 import android.content.Intent;
 import android.graphics.Paint;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
@@ -12,19 +14,21 @@ import android.widget.LinearLayout;
 import android.widget.RatingBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.textfield.TextInputEditText;
-import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.Query;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ProductDetailActivity extends AppCompatActivity {
 
@@ -52,11 +56,36 @@ public class ProductDetailActivity extends AppCompatActivity {
     private ReviewAdapter reviewAdapter;
 
     // Review Image upload logic
-    private TextInputLayout tilReviewImages;
-    private TextInputEditText etReviewImages;
+    private LinearLayout btnPickReviewImages;
     private RecyclerView rvReviewSelectedImages;
     private SelectedImageAdapter reviewSelectedImageAdapter;
     private List<String> reviewSelectedImagesList = new ArrayList<>();
+    private List<Uri> reviewSelectedUriList = new ArrayList<>();
+
+    private final ActivityResultLauncher<Intent> reviewImagePickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    if (result.getData().getClipData() != null) {
+                        int count = result.getData().getClipData().getItemCount();
+                        for (int i = 0; i < count; i++) {
+                            Uri imageUri = result.getData().getClipData().getItemAt(i).getUri();
+                            addReviewImageToList(imageUri);
+                        }
+                    } else if (result.getData().getData() != null) {
+                        Uri imageUri = result.getData().getData();
+                        addReviewImageToList(imageUri);
+                    }
+                }
+            }
+    );
+
+    private void addReviewImageToList(Uri uri) {
+        reviewSelectedUriList.add(uri);
+        reviewSelectedImagesList.add(uri.toString());
+        reviewSelectedImageAdapter.notifyItemInserted(reviewSelectedImagesList.size() - 1);
+        rvReviewSelectedImages.scrollToPosition(reviewSelectedImagesList.size() - 1);
+    }
 
     // Admin products list (Sản phẩm liên quan)
     private NonScrollListView lvAdminProducts;
@@ -87,6 +116,7 @@ public class ProductDetailActivity extends AppCompatActivity {
             recommendationHelper.recordProductView(product);
 
             initViews();
+            initReviewAdapter(); // Khởi tạo adapter review ngay từ đầu
             initTopMenu();
             initProductContent();
             setupBottomNavigation();
@@ -115,11 +145,36 @@ public class ProductDetailActivity extends AppCompatActivity {
         btnSubmitReview = findViewById(R.id.btn_submit_review);
         lvReviews = findViewById(R.id.lv_reviews);
         
-        tilReviewImages = findViewById(R.id.til_review_images);
-        etReviewImages = findViewById(R.id.et_review_images);
+        btnPickReviewImages = findViewById(R.id.btn_pick_review_images);
         rvReviewSelectedImages = findViewById(R.id.rv_review_selected_images);
 
         lvAdminProducts = findViewById(R.id.lv_admin_products);
+    }
+
+    private void initReviewAdapter() {
+        // Review list adapter
+        reviewAdapter = new ReviewAdapter(this, reviewList, this::showFullScreenImage);
+        lvReviews.setAdapter(reviewAdapter);
+
+        // Review selection adapter
+        reviewSelectedImageAdapter = new SelectedImageAdapter(this, reviewSelectedImagesList, position -> {
+            reviewSelectedImagesList.remove(position);
+            if (position < reviewSelectedUriList.size()) {
+                reviewSelectedUriList.remove(position);
+            }
+            reviewSelectedImageAdapter.notifyItemRemoved(position);
+            reviewSelectedImageAdapter.notifyItemRangeChanged(position, reviewSelectedImagesList.size());
+        });
+        rvReviewSelectedImages.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        rvReviewSelectedImages.setAdapter(reviewSelectedImageAdapter);
+
+        if (btnPickReviewImages != null) {
+            btnPickReviewImages.setOnClickListener(v -> {
+                Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                reviewImagePickerLauncher.launch(intent);
+            });
+        }
     }
 
     private void setupImageGallery() {
@@ -219,16 +274,11 @@ public class ProductDetailActivity extends AppCompatActivity {
     }
 
     private void setupReviewSection() {
-        // Khởi tạo adapter trước khi load dữ liệu
-        reviewAdapter = new ReviewAdapter(this, reviewList, this::showFullScreenImage);
-        lvReviews.setAdapter(reviewAdapter);
-
         if (MainActivity.isLoggedIn && MainActivity.currentUser != null) {
             // Kiểm tra xem đã đánh giá chưa
             reviewDAO.checkIfUserReviewed(product.getId(), MainActivity.currentUser.getEmail()).addOnSuccessListener(queryDocumentSnapshots -> {
                 if (queryDocumentSnapshots.isEmpty()) {
                     layoutAddReview.setVisibility(View.VISIBLE);
-                    setupReviewImageInput();
                     btnSubmitReview.setOnClickListener(v -> submitReview());
                 } else {
                     layoutAddReview.setVisibility(View.GONE);
@@ -239,25 +289,6 @@ public class ProductDetailActivity extends AppCompatActivity {
         } else {
             layoutAddReview.setVisibility(View.GONE);
         }
-    }
-
-    private void setupReviewImageInput() {
-        reviewSelectedImagesList.clear();
-        reviewSelectedImageAdapter = new SelectedImageAdapter(this, reviewSelectedImagesList, position -> {
-            reviewSelectedImagesList.remove(position);
-            reviewSelectedImageAdapter.notifyItemRemoved(position);
-        });
-        rvReviewSelectedImages.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
-        rvReviewSelectedImages.setAdapter(reviewSelectedImageAdapter);
-
-        tilReviewImages.setEndIconOnClickListener(v -> {
-            String url = etReviewImages.getText().toString().trim();
-            if (!url.isEmpty()) {
-                reviewSelectedImagesList.add(url);
-                reviewSelectedImageAdapter.notifyItemInserted(reviewSelectedImagesList.size() - 1);
-                etReviewImages.setText("");
-            }
-        });
     }
 
     private void submitReview() {
@@ -279,18 +310,66 @@ public class ProductDetailActivity extends AppCompatActivity {
                 rating,
                 comment,
                 System.currentTimeMillis(),
-                new ArrayList<>(reviewSelectedImagesList)
+                new ArrayList<>() 
         );
-        
+
+        btnSubmitReview.setEnabled(false); // Tránh nhấn nhiều lần
+        if (reviewSelectedUriList.isEmpty()) {
+            saveReviewToFirestore(review);
+        } else {
+            uploadReviewImagesAndSubmit(review);
+        }
+    }
+
+    private void uploadReviewImagesAndSubmit(Review review) {
+        Toast.makeText(this, "Đang tải ảnh lên...", Toast.LENGTH_SHORT).show();
+        List<String> uploadedUrls = Collections.synchronizedList(new ArrayList<>());
+        FirebaseStorage storage = FirebaseStorage.getInstance();
+        StorageReference storageRef = storage.getReference().child("review_images");
+
+        AtomicInteger uploadCount = new AtomicInteger(0);
+        int totalImages = reviewSelectedUriList.size();
+
+        for (int i = 0; i < totalImages; i++) {
+            Uri uri = reviewSelectedUriList.get(i);
+            String fileName = "rev_" + System.currentTimeMillis() + "_" + i + ".jpg";
+            StorageReference imageRef = storageRef.child(fileName);
+
+            imageRef.putFile(uri).addOnSuccessListener(taskSnapshot -> {
+                imageRef.getDownloadUrl().addOnSuccessListener(downloadUri -> {
+                    uploadedUrls.add(downloadUri.toString());
+                    if (uploadCount.incrementAndGet() == totalImages) {
+                        review.setImages(new ArrayList<>(uploadedUrls));
+                        saveReviewToFirestore(review);
+                    }
+                }).addOnFailureListener(e -> {
+                    btnSubmitReview.setEnabled(true);
+                    Toast.makeText(this, "Lỗi lấy link ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }).addOnFailureListener(e -> {
+                btnSubmitReview.setEnabled(true);
+                Log.e(TAG, "Error uploading review image", e);
+                Toast.makeText(this, "Lỗi tải ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
+        }
+    }
+
+    private void saveReviewToFirestore(Review review) {
         reviewDAO.addReview(review).addOnSuccessListener(aVoid -> {
             Toast.makeText(this, "Đánh giá thành công!", Toast.LENGTH_SHORT).show();
             etInputComment.setText("");
             rbInputRating.setRating(5);
+            
+            // Xóa dữ liệu ảnh sau khi gửi thành công
+            reviewSelectedUriList.clear();
             reviewSelectedImagesList.clear();
             reviewSelectedImageAdapter.notifyDataSetChanged();
+            
             layoutAddReview.setVisibility(View.GONE);
+            btnSubmitReview.setEnabled(true);
             loadReviews();
         }).addOnFailureListener(e -> {
+            btnSubmitReview.setEnabled(true);
             Toast.makeText(this, "Lỗi khi gửi đánh giá: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });
     }
@@ -305,10 +384,7 @@ public class ProductDetailActivity extends AppCompatActivity {
                     reviewList.add(review);
                 }
             }
-            // Sắp xếp theo thời gian mới nhất (vì đã bỏ orderBy trong DAO để tránh lỗi Index)
             Collections.sort(reviewList, (r1, r2) -> Long.compare(r2.getTimestamp(), r1.getTimestamp()));
-            
-            Log.d(TAG, "Loaded " + reviewList.size() + " reviews for product: " + product.getId());
             reviewAdapter.notifyDataSetChanged();
         }).addOnFailureListener(e -> {
             Log.e(TAG, "Error loading reviews", e);
