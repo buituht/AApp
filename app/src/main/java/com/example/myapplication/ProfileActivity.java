@@ -93,12 +93,33 @@ public class ProfileActivity extends AppCompatActivity {
         btnAdminLookupWarranty = findViewById(R.id.btn_admin_lookup_warranty);
 
         orderAdapter = new OrderAdapter(this, orderList);
-        orderAdapter.setOnOrderUpdateListener(this::showUpdateStatusDialog);
+        orderAdapter.setOnOrderActionListener(new OrderAdapter.OnOrderActionListener() {
+            @Override
+            public void onUpdateStatus(Order order) {
+                showUpdateStatusDialog(order);
+            }
+
+            @Override
+            public void onCancelOrder(Order order) {
+                confirmCancelOrder(order);
+            }
+        });
         lvOrders.setAdapter(orderAdapter);
     }
 
+    private void confirmCancelOrder(Order order) {
+        new AlertDialog.Builder(this)
+                .setTitle("Xác nhận hủy đơn")
+                .setMessage("Bạn có chắc chắn muốn hủy đơn hàng này không?")
+                .setPositiveButton("Hủy đơn", (dialog, which) -> {
+                    updateOrderStatus(order, "Đã hủy");
+                })
+                .setNegativeButton("Quay lại", null)
+                .show();
+    }
+
     private void showUpdateStatusDialog(Order order) {
-        if (!MainActivity.isAdmin) return; // Chỉ admin mới có quyền đổi status nhanh ở đây
+        if (!MainActivity.isAdmin) return;
         
         String[] statuses = {"Đang xử lý", "Đang giao", "Đã giao", "Đã hủy"};
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -114,7 +135,7 @@ public class ProfileActivity extends AppCompatActivity {
         if (order.getOrderId() == null) return;
         
         orderDAO.updateOrderStatus(order.getOrderId(), newStatus).addOnSuccessListener(aVoid -> {
-            Toast.makeText(this, "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Cập nhật đơn hàng thành công", Toast.LENGTH_SHORT).show();
             loadOrders();
         }).addOnFailureListener(e -> {
             Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -249,7 +270,21 @@ public class ProfileActivity extends AppCompatActivity {
             finish();
             return;
         }
-        displayUserInfo();
+        
+        if (MainActivity.currentUser != null && MainActivity.currentUser.getEmail() != null) {
+            userDAO.getUserByEmail(MainActivity.currentUser.getEmail()).addOnSuccessListener(documentSnapshot -> {
+                User updatedUser = documentSnapshot.toObject(User.class);
+                if (updatedUser != null) {
+                    MainActivity.currentUser = updatedUser;
+                    displayUserInfo();
+                }
+            }).addOnFailureListener(e -> {
+                displayUserInfo();
+            });
+        } else {
+            displayUserInfo();
+        }
+
         updateAdminVisibility();
         loadOrders();
         setupBottomNavigation();
