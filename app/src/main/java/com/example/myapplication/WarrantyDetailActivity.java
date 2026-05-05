@@ -83,11 +83,14 @@ public class WarrantyDetailActivity extends AppCompatActivity {
         tvActivation.setText("Ngày kích hoạt: " + sdf.format(new Date(warrantyCard.getActivationDate())));
         tvExpiry.setText("Ngày hết hạn: " + sdf.format(new Date(warrantyCard.getExpiryDate())));
         
-        tvStatus.setText(warrantyCard.getStatus());
-        if ("Active".equals(warrantyCard.getStatus())) {
+        // Hiển thị trạng thái tiếng Việt
+        String status = warrantyCard.getStatus();
+        if ("Active".equals(status) || "Còn hiệu lực".equals(status)) {
+            tvStatus.setText("Còn hiệu lực");
             tvStatus.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
             btnClaim.setVisibility(View.VISIBLE);
         } else {
+            tvStatus.setText("Hết hạn");
             tvStatus.setTextColor(getResources().getColor(android.R.color.holo_red_dark));
             btnClaim.setVisibility(View.GONE);
         }
@@ -160,12 +163,13 @@ public class WarrantyDetailActivity extends AppCompatActivity {
                 MainActivity.currentUser != null ? MainActivity.currentUser.getEmail() : warrantyCard.getUserEmail(),
                 description,
                 images,
-                "Pending",
+                "Chờ xử lý", // Sử dụng tiếng Việt làm trạng thái mặc định
                 System.currentTimeMillis()
         );
 
         warrantyDAO.submitClaim(claim).addOnSuccessListener(aVoid -> {
             Toast.makeText(this, "Gửi yêu cầu bảo hành thành công!", Toast.LENGTH_LONG).show();
+            finish(); // Đóng màn hình sau khi gửi thành công
         }).addOnFailureListener(e -> {
             Toast.makeText(this, "Lỗi khi gửi yêu cầu: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });
