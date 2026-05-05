@@ -14,7 +14,7 @@ public class WarrantyClaimAdminActivity extends AppCompatActivity {
 
     private TabLayout tabLayout;
     private ViewPager2 viewPager;
-    private final String[] statusTabs = {"Tất cả", "Pending", "Processing", "Resolved", "Rejected"};
+    private final String[] statusTabs = {"Tất cả", "Chờ xử lý", "Đang xử lý", "Đã giải quyết", "Từ chối"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
