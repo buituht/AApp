@@ -13,6 +13,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -26,7 +27,7 @@ public class VoucherAdminActivity extends AppCompatActivity {
     private TextView tvEmpty;
     private View btnBack;
     private ImageButton btnAdd;
-    private DatabaseHelper dbHelper;
+    private VoucherDAO voucherDAO;
     private List<Voucher> voucherList = new ArrayList<>();
     private VoucherAdminAdapter adapter;
     private SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
@@ -36,7 +37,7 @@ public class VoucherAdminActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_voucher_admin);
 
-        dbHelper = new DatabaseHelper(this);
+        voucherDAO = new VoucherDAO();
         initViews();
         setupAdapter();
         loadVouchers();
@@ -68,10 +69,20 @@ public class VoucherAdminActivity extends AppCompatActivity {
     }
 
     private void loadVouchers() {
-        voucherList.clear();
-        voucherList.addAll(dbHelper.getAllVouchers());
-        adapter.notifyDataSetChanged();
-        tvEmpty.setVisibility(voucherList.isEmpty() ? View.VISIBLE : View.GONE);
+        voucherDAO.getAllVouchers().addOnSuccessListener(queryDocumentSnapshots -> {
+            voucherList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Voucher v = doc.toObject(Voucher.class);
+                if (v != null) {
+                    v.setId(doc.getId());
+                    voucherList.add(v);
+                }
+            }
+            adapter.notifyDataSetChanged();
+            tvEmpty.setVisibility(voucherList.isEmpty() ? View.VISIBLE : View.GONE);
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi tải voucher: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void showVoucherDialog(Voucher voucher) {
@@ -142,13 +153,16 @@ public class VoucherAdminActivity extends AppCompatActivity {
             v.setExpiryDate(endCal.getTimeInMillis());
             
             if (voucher == null) {
-                dbHelper.addVoucher(v);
+                voucherDAO.addVoucher(v).addOnSuccessListener(aVoid -> {
+                    loadVouchers();
+                    Toast.makeText(VoucherAdminActivity.this, "Đã thêm thành công", Toast.LENGTH_SHORT).show();
+                });
             } else {
-                dbHelper.updateVoucher(v);
+                voucherDAO.updateVoucher(v).addOnSuccessListener(aVoid -> {
+                    loadVouchers();
+                    Toast.makeText(VoucherAdminActivity.this, "Đã cập nhật thành công", Toast.LENGTH_SHORT).show();
+                });
             }
-
-            loadVouchers();
-            Toast.makeText(this, "Đã lưu thành công", Toast.LENGTH_SHORT).show();
         });
 
         builder.setNegativeButton("Hủy", null);
@@ -174,9 +188,10 @@ public class VoucherAdminActivity extends AppCompatActivity {
                 .setTitle("Xóa Voucher")
                 .setMessage("Bạn có chắc chắn muốn xóa voucher này không?")
                 .setPositiveButton("Xóa", (dialog, which) -> {
-                    dbHelper.deleteVoucher(voucher.getId());
-                    loadVouchers();
-                    Toast.makeText(this, "Đã xóa voucher", Toast.LENGTH_SHORT).show();
+                    voucherDAO.deleteVoucher(voucher.getId()).addOnSuccessListener(aVoid -> {
+                        loadVouchers();
+                        Toast.makeText(VoucherAdminActivity.this, "Đã xóa voucher", Toast.LENGTH_SHORT).show();
+                    });
                 })
                 .setNegativeButton("Hủy", null)
                 .show();
