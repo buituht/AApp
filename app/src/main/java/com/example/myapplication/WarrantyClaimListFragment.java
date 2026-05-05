@@ -48,7 +48,6 @@ public class WarrantyClaimListFragment extends Fragment {
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        // Sử dụng lại layout fragment_order_list vì nó chỉ chứa RecyclerView và TextView thông báo
         View view = inflater.inflate(R.layout.fragment_order_list, container, false);
         rvClaims = view.findViewById(R.id.rv_orders);
         tvNoClaims = view.findViewById(R.id.tv_no_orders);
@@ -93,7 +92,7 @@ public class WarrantyClaimListFragment extends Fragment {
     }
 
     private void showUpdateStatusDialog(WarrantyClaim claim) {
-        String[] statuses = {"Pending", "Processing", "Resolved", "Rejected"};
+        String[] statuses = {"Chờ xử lý", "Đang xử lý", "Đã giải quyết", "Từ chối"};
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
         builder.setTitle("Cập nhật trạng thái yêu cầu");
         
