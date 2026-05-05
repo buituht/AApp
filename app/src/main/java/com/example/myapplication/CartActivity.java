@@ -25,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -44,6 +45,7 @@ public class CartActivity extends AppCompatActivity {
     private UserDAO userDAO;
     private WarrantyDAO warrantyDAO;
     private OrderDAO orderDAO;
+    private VoucherDAO voucherDAO;
     private Voucher appliedVoucher = null;
 
     @Override
@@ -55,6 +57,7 @@ public class CartActivity extends AppCompatActivity {
         userDAO = new UserDAO(this);
         warrantyDAO = new WarrantyDAO();
         orderDAO = new OrderDAO();
+        voucherDAO = new VoucherDAO();
         initViews();
         loadUserInfo();
         setupAddressSelection();
@@ -177,7 +180,6 @@ public class CartActivity extends AppCompatActivity {
         String fullOrderId = UUID.randomUUID().toString();
         String shortOrderId = fullOrderId.substring(0, 8).toUpperCase();
         
-        // CẬP NHẬT: Thêm email người dùng vào đơn hàng
         Order newOrder = new Order(
                 fullOrderId,
                 MainActivity.currentUser.getUsername(),
@@ -275,44 +277,67 @@ public class CartActivity extends AppCompatActivity {
         String code = etVoucherCode.getText().toString().trim();
         if (TextUtils.isEmpty(code)) return;
 
-        Voucher voucher = dbHelper.getVoucherByCode(code);
-        if (voucher != null) {
-            if (System.currentTimeMillis() > voucher.getExpiryDate()) {
-                Toast.makeText(this, "Mã giảm giá đã hết hạn", Toast.LENGTH_SHORT).show();
-                return;
+        voucherDAO.getVoucherByCode(code).addOnSuccessListener(queryDocumentSnapshots -> {
+            if (!queryDocumentSnapshots.isEmpty()) {
+                Voucher voucher = queryDocumentSnapshots.getDocuments().get(0).toObject(Voucher.class);
+                if (voucher != null) {
+                    if (System.currentTimeMillis() > voucher.getExpiryDate()) {
+                        Toast.makeText(this, "Mã giảm giá đã hết hạn", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    long subtotal = calculateSubtotal();
+                    if (subtotal < voucher.getMinOrderAmount()) {
+                        Toast.makeText(this, "Đơn hàng tối thiểu " + String.format("%,d", voucher.getMinOrderAmount()) + " VNĐ", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    appliedVoucher = voucher;
+                    tvAppliedVoucherInfo.setText("Đã áp dụng: " + voucher.getCode());
+                    updateTotal();
+                }
+            } else {
+                Toast.makeText(this, "Mã giảm giá không hợp lệ", Toast.LENGTH_SHORT).show();
             }
-            long subtotal = calculateSubtotal();
-            if (subtotal < voucher.getMinOrderAmount()) {
-                Toast.makeText(this, "Đơn hàng tối thiểu " + String.format("%,d", voucher.getMinOrderAmount()) + " VNĐ", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            appliedVoucher = voucher;
-            tvAppliedVoucherInfo.setText("Đã áp dụng: " + voucher.getCode());
-            updateTotal();
-        }
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi kiểm tra mã giảm giá: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void showVoucherSelectionDialog() {
-        List<Voucher> vouchers = dbHelper.getAllVouchers();
-        if (vouchers.isEmpty()) return;
+        voucherDAO.getAllVouchers().addOnSuccessListener(queryDocumentSnapshots -> {
+            List<Voucher> vouchers = new ArrayList<>();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Voucher v = doc.toObject(Voucher.class);
+                if (v != null) {
+                    v.setId(doc.getId());
+                    vouchers.add(v);
+                }
+            }
+            
+            if (vouchers.isEmpty()) {
+                Toast.makeText(this, "Không có mã giảm giá nào khả dụng", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_vouchers, null);
-        RecyclerView rvVouchers = dialogView.findViewById(R.id.rv_vouchers);
-        rvVouchers.setLayoutManager(new LinearLayoutManager(this));
-        
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Chọn mã giảm giá")
-                .setView(dialogView)
-                .setNegativeButton("Đóng", null)
-                .create();
+            View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_vouchers, null);
+            RecyclerView rvVouchers = dialogView.findViewById(R.id.rv_vouchers);
+            rvVouchers.setLayoutManager(new LinearLayoutManager(this));
+            
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle("Chọn mã giảm giá")
+                    .setView(dialogView)
+                    .setNegativeButton("Đóng", null)
+                    .create();
 
-        VoucherAdapter voucherAdapter = new VoucherAdapter(this, vouchers, voucher -> {
-            etVoucherCode.setText(voucher.getCode());
-            applyVoucherCode();
-            dialog.dismiss();
+            VoucherAdapter voucherAdapter = new VoucherAdapter(this, vouchers, voucher -> {
+                etVoucherCode.setText(voucher.getCode());
+                applyVoucherCode();
+                dialog.dismiss();
+            });
+            rvVouchers.setAdapter(voucherAdapter);
+            dialog.show();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi tải danh sách mã giảm giá: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });
-        rvVouchers.setAdapter(voucherAdapter);
-        dialog.show();
     }
 
     private void loadUserInfo() {
@@ -378,9 +403,17 @@ public class CartActivity extends AppCompatActivity {
             long price = (p.getDiscountPrice() > 0) ? p.getDiscountPrice() : p.getPrice();
             ((TextView)convertView.findViewById(R.id.tv_cart_item_price)).setText(String.format("%,d VNĐ", price));
             ImageView img = convertView.findViewById(R.id.img_cart_product);
+            
             if (p.getImages() != null && !p.getImages().isEmpty()) {
-                Glide.with(CartActivity.this).load(GlideUtils.getGlideUrlWithUserAgent(p.getImages().get(0))).into(img);
+                Glide.with(CartActivity.this)
+                        .load(GlideUtils.getGlideUrlWithUserAgent(p.getImages().get(0)))
+                        .placeholder(R.drawable.ic_ball)
+                        .error(R.drawable.ic_ball)
+                        .into(img);
+            } else {
+                img.setImageResource(R.drawable.ic_ball);
             }
+
             convertView.findViewById(R.id.btn_remove_cart).setOnClickListener(v -> {
                 cartItemList.remove(position);
                 updateTotal();
