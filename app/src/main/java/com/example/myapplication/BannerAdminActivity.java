@@ -20,11 +20,13 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class BannerAdminActivity extends AppCompatActivity {
 
@@ -35,18 +37,22 @@ public class BannerAdminActivity extends AppCompatActivity {
     private RecyclerView rvBanners;
     private BannerAdminAdapter adapter;
     private List<Banner> bannerList;
-    private DatabaseHelper dbHelper;
+    private BannerDAO bannerDAO;
     private Banner editingBanner = null;
     private BottomNavigationView bottomNavigationView;
     private Uri selectedImageUri;
+    private boolean isUploading = false;
 
     private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     selectedImageUri = result.getData().getData();
-                    ivPreview.setImageURI(selectedImageUri);
-                    etBannerUrl.setText("");
+                    if (selectedImageUri != null) {
+                        ivPreview.setImageURI(selectedImageUri);
+                        etBannerUrl.setText("");
+                        uploadBannerToFirebase(selectedImageUri);
+                    }
                 }
             }
     );
@@ -56,7 +62,7 @@ public class BannerAdminActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_banner_admin);
 
-        dbHelper = new DatabaseHelper(this);
+        bannerDAO = new BannerDAO(this);
         initViews();
         setupBottomNavigation();
         loadBanners();
@@ -122,52 +128,47 @@ public class BannerAdminActivity extends AppCompatActivity {
         });
 
         btnAddBanner.setOnClickListener(v -> {
+            if (isUploading) {
+                Toast.makeText(this, "Vui lòng đợi ảnh tải lên xong", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             String url = etBannerUrl.getText().toString().trim();
 
-            if (selectedImageUri == null && url.isEmpty()) {
+            if (url.isEmpty()) {
                 Toast.makeText(this, "Vui lòng chọn ảnh hoặc nhập link", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            String finalImageUrl = url;
-            if (selectedImageUri != null) {
-                String localPath = saveImageToInternalStorage(selectedImageUri);
-                if (localPath != null) {
-                    finalImageUrl = localPath;
-                } else {
-                    Toast.makeText(this, "Lỗi khi lưu ảnh", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-            }
-
             if (editingBanner != null) {
-                updateBanner(editingBanner, finalImageUrl);
+                updateBanner(editingBanner, url);
             } else {
-                addBanner(finalImageUrl);
+                addBanner(url);
             }
         });
     }
 
-    private String saveImageToInternalStorage(Uri uri) {
-        try {
-            File folder = new File(getFilesDir(), "banner_images");
-            if (!folder.exists()) folder.mkdirs();
-            String fileName = "banner_" + System.currentTimeMillis() + ".jpg";
-            File file = new File(folder, fileName);
-            InputStream is = getContentResolver().openInputStream(uri);
-            FileOutputStream os = new FileOutputStream(file);
-            byte[] buffer = new byte[1024];
-            int length;
-            while ((length = is.read(buffer)) > 0) {
-                os.write(buffer, 0, length);
-            }
-            os.close();
-            is.close();
-            return file.getAbsolutePath();
-        } catch (Exception e) {
-            Log.e("BannerSave", "Error: " + e.getMessage());
-            return null;
-        }
+    private void uploadBannerToFirebase(Uri uri) {
+        isUploading = true;
+        btnAddBanner.setEnabled(false);
+        Toast.makeText(this, "Đang tải ảnh lên Firebase...", Toast.LENGTH_SHORT).show();
+
+        StorageReference storageRef = FirebaseStorage.getInstance().getReference()
+                .child("banners/" + UUID.randomUUID().toString() + ".jpg");
+
+        storageRef.putFile(uri).addOnSuccessListener(taskSnapshot -> {
+            storageRef.getDownloadUrl().addOnSuccessListener(downloadUri -> {
+                String imageUrl = downloadUri.toString();
+                etBannerUrl.setText(imageUrl);
+                isUploading = false;
+                btnAddBanner.setEnabled(true);
+                Toast.makeText(this, "Tải ảnh thành công", Toast.LENGTH_SHORT).show();
+            });
+        }).addOnFailureListener(e -> {
+            isUploading = false;
+            btnAddBanner.setEnabled(true);
+            Toast.makeText(this, "Lỗi tải ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void setupBottomNavigation() {
@@ -191,25 +192,41 @@ public class BannerAdminActivity extends AppCompatActivity {
     }
 
     private void loadBanners() {
-        bannerList.clear();
-        bannerList.addAll(dbHelper.getAllBanners());
-        adapter.notifyDataSetChanged();
+        bannerDAO.getAllBannersFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+            bannerList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Banner banner = doc.toObject(Banner.class);
+                if (banner != null) {
+                    banner.setId(doc.getId());
+                    bannerList.add(banner);
+                }
+            }
+            adapter.notifyDataSetChanged();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi tải banner từ Firebase: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void addBanner(String url) {
         Banner newBanner = new Banner(null, url);
-        dbHelper.addBanner(newBanner);
-        Toast.makeText(this, "Đã thêm banner", Toast.LENGTH_SHORT).show();
-        resetForm();
-        loadBanners();
+        bannerDAO.addBanner(newBanner).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, "Đã thêm banner vào Firebase", Toast.LENGTH_SHORT).show();
+            resetForm();
+            loadBanners();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi khi thêm banner: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void updateBanner(Banner banner, String newUrl) {
         banner.setImageUrl(newUrl);
-        dbHelper.updateBanner(banner);
-        Toast.makeText(this, "Đã cập nhật", Toast.LENGTH_SHORT).show();
-        resetForm();
-        loadBanners();
+        bannerDAO.updateBanner(banner).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, "Đã cập nhật banner trên Firebase", Toast.LENGTH_SHORT).show();
+            resetForm();
+            loadBanners();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi khi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void resetForm() {
@@ -221,8 +238,11 @@ public class BannerAdminActivity extends AppCompatActivity {
     }
 
     private void deleteBanner(Banner banner) {
-        dbHelper.deleteBanner(banner.getId());
-        Toast.makeText(this, "Đã xóa", Toast.LENGTH_SHORT).show();
-        loadBanners();
+        bannerDAO.deleteBanner(banner.getId()).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, "Đã xóa banner khỏi Firebase", Toast.LENGTH_SHORT).show();
+            loadBanners();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi khi xóa: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 }
