@@ -22,11 +22,12 @@ import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class AddCategoryActivity extends AppCompatActivity {
 
@@ -38,13 +39,14 @@ public class AddCategoryActivity extends AppCompatActivity {
     private RecyclerView rvCategories;
     private BottomNavigationView bottomNavigationView;
     
-    private DatabaseHelper dbHelper;
+    private CategoryDAO categoryDAO;
     private CategoryAdapter categoryAdapter;
     private List<Category> categoryList;
     
     private boolean isEditMode = false;
     private Category selectedCategory = null;
     private Uri selectedImageUri;
+    private boolean isUploading = false;
 
     private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -53,6 +55,7 @@ public class AddCategoryActivity extends AppCompatActivity {
                     selectedImageUri = result.getData().getData();
                     ivPreview.setImageURI(selectedImageUri);
                     etCategoryImage.setText("");
+                    uploadCategoryImage(selectedImageUri);
                 }
             }
     );
@@ -62,7 +65,7 @@ public class AddCategoryActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_category);
 
-        dbHelper = new DatabaseHelper(this);
+        categoryDAO = new CategoryDAO(this);
         initViews();
         setupRecyclerView();
         setupImagePreview();
@@ -161,9 +164,19 @@ public class AddCategoryActivity extends AppCompatActivity {
     }
 
     private void loadCategories() {
-        categoryList.clear();
-        categoryList.addAll(dbHelper.getAllCategories());
-        categoryAdapter.notifyDataSetChanged();
+        categoryDAO.getAllCategoriesFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+            categoryList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Category cat = doc.toObject(Category.class);
+                if (cat != null) {
+                    cat.setId(doc.getId());
+                    categoryList.add(cat);
+                }
+            }
+            categoryAdapter.notifyDataSetChanged();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi tải danh mục: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void enterEditMode(Category category) {
@@ -197,29 +210,35 @@ public class AddCategoryActivity extends AppCompatActivity {
         ivPreview.setImageResource(R.drawable.ic_ball);
     }
 
-    private String saveImageToInternalStorage(Uri uri) {
-        try {
-            File folder = new File(getFilesDir(), "category_images");
-            if (!folder.exists()) folder.mkdirs();
-            String fileName = "cat_" + System.currentTimeMillis() + ".jpg";
-            File file = new File(folder, fileName);
-            InputStream is = getContentResolver().openInputStream(uri);
-            FileOutputStream os = new FileOutputStream(file);
-            byte[] buffer = new byte[1024];
-            int length;
-            while ((length = is.read(buffer)) > 0) {
-                os.write(buffer, 0, length);
-            }
-            os.close();
-            is.close();
-            return file.getAbsolutePath();
-        } catch (Exception e) {
-            Log.e("CategorySave", "Error: " + e.getMessage());
-            return null;
-        }
+    private void uploadCategoryImage(Uri uri) {
+        isUploading = true;
+        btnSave.setEnabled(false);
+        Toast.makeText(this, "Đang tải ảnh lên...", Toast.LENGTH_SHORT).show();
+
+        StorageReference storageRef = FirebaseStorage.getInstance().getReference()
+                .child("categories/" + UUID.randomUUID().toString() + ".jpg");
+
+        storageRef.putFile(uri).addOnSuccessListener(taskSnapshot -> {
+            storageRef.getDownloadUrl().addOnSuccessListener(downloadUri -> {
+                String imageUrl = downloadUri.toString();
+                etCategoryImage.setText(imageUrl);
+                isUploading = false;
+                btnSave.setEnabled(true);
+                Toast.makeText(this, "Tải ảnh thành công", Toast.LENGTH_SHORT).show();
+            });
+        }).addOnFailureListener(e -> {
+            isUploading = false;
+            btnSave.setEnabled(true);
+            Toast.makeText(this, "Lỗi tải ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void saveCategory() {
+        if (isUploading) {
+            Toast.makeText(this, "Vui lòng đợi ảnh tải lên xong", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         String name = etCategoryName.getText().toString().trim();
         String imageUrl = etCategoryImage.getText().toString().trim();
 
@@ -228,32 +247,25 @@ public class AddCategoryActivity extends AppCompatActivity {
             return;
         }
 
-        String finalImageUrl = imageUrl;
-        if (selectedImageUri != null) {
-            String localPath = saveImageToInternalStorage(selectedImageUri);
-            if (localPath != null) {
-                finalImageUrl = localPath;
-            } else {
-                Toast.makeText(this, "Lỗi khi lưu ảnh", Toast.LENGTH_SHORT).show();
-                return;
-            }
-        }
-
         if (isEditMode && selectedCategory != null) {
             selectedCategory.setName(name);
-            selectedCategory.setImageUrl(finalImageUrl);
-            dbHelper.updateCategory(selectedCategory);
-            Toast.makeText(this, "Đã cập nhật danh mục!", Toast.LENGTH_SHORT).show();
-            resetForm();
-            loadCategories();
+            selectedCategory.setImageUrl(imageUrl);
+            categoryDAO.updateCategory(selectedCategory).addOnSuccessListener(aVoid -> {
+                Toast.makeText(this, "Đã cập nhật danh mục trên Firebase!", Toast.LENGTH_SHORT).show();
+                resetForm();
+                loadCategories();
+            }).addOnFailureListener(e -> {
+                Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
         } else {
-            Category newCat = new Category();
-            newCat.setName(name);
-            newCat.setImageUrl(finalImageUrl);
-            dbHelper.addCategory(newCat);
-            Toast.makeText(this, "Đã thêm danh mục mới!", Toast.LENGTH_SHORT).show();
-            resetForm();
-            loadCategories();
+            Category newCat = new Category(null, name, imageUrl);
+            categoryDAO.addCategory(newCat).addOnSuccessListener(aVoid -> {
+                Toast.makeText(this, "Đã thêm danh mục mới vào Firebase!", Toast.LENGTH_SHORT).show();
+                resetForm();
+                loadCategories();
+            }).addOnFailureListener(e -> {
+                Toast.makeText(this, "Lỗi thêm: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
         }
     }
 
@@ -267,8 +279,11 @@ public class AddCategoryActivity extends AppCompatActivity {
     }
 
     private void deleteCategory(Category category) {
-        dbHelper.deleteCategory(category.getId());
-        Toast.makeText(this, "Đã xóa danh mục", Toast.LENGTH_SHORT).show();
-        loadCategories();
+        categoryDAO.deleteCategory(category.getId()).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, "Đã xóa danh mục khỏi Firebase", Toast.LENGTH_SHORT).show();
+            loadCategories();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi khi xóa: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 }
