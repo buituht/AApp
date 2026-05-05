@@ -580,7 +580,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(KEY_VOUCHER_START_DATE, voucher.getStartDate());
         values.put(KEY_VOUCHER_EXPIRY, voucher.getExpiryDate());
         db.update(TABLE_VOUCHERS, values, KEY_VOUCHER_ID + " = ?", new String[]{String.valueOf(voucher.getId())});
-        close();
+        db.close();
     }
 
     public void deleteVoucher(int id) {
@@ -596,7 +596,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         if (cursor.moveToFirst()) {
             do {
                 Voucher v = new Voucher();
-                v.setId(cursor.getInt(cursor.getColumnIndexOrThrow(KEY_VOUCHER_ID)));
+                v.setId(String.valueOf(cursor.getInt(cursor.getColumnIndexOrThrow(KEY_VOUCHER_ID))));
                 v.setCode(cursor.getString(cursor.getColumnIndexOrThrow(KEY_VOUCHER_CODE)));
                 v.setDescription(cursor.getString(cursor.getColumnIndexOrThrow(KEY_VOUCHER_DESCRIPTION)));
                 v.setDiscountValue(cursor.getLong(cursor.getColumnIndexOrThrow(KEY_VOUCHER_DISCOUNT_VALUE)));
@@ -617,7 +617,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         Voucher v = null;
         if (cursor != null && cursor.moveToFirst()) {
             v = new Voucher();
-            v.setId(cursor.getInt(cursor.getColumnIndexOrThrow(KEY_VOUCHER_ID)));
+            v.setId(String.valueOf(cursor.getInt(cursor.getColumnIndexOrThrow(KEY_VOUCHER_ID))));
             v.setCode(cursor.getString(cursor.getColumnIndexOrThrow(KEY_VOUCHER_CODE)));
             v.setDescription(cursor.getString(cursor.getColumnIndexOrThrow(KEY_VOUCHER_DESCRIPTION)));
             v.setDiscountValue(cursor.getLong(cursor.getColumnIndexOrThrow(KEY_VOUCHER_DISCOUNT_VALUE)));
