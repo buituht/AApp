@@ -58,6 +58,11 @@ dependencies {
     implementation(libs.firebase.storage)
     implementation(libs.firebase.firestore)
 
+    // Gemini AI
+    implementation(libs.generativeai)
+    // Guava for ListenableFuture (used by Gemini Java SDK)
+    implementation(libs.guava)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
