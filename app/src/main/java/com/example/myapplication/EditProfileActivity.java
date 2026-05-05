@@ -17,10 +17,13 @@ import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.Calendar;
+import java.util.UUID;
 
 public class EditProfileActivity extends AppCompatActivity {
 
@@ -33,14 +36,17 @@ public class EditProfileActivity extends AppCompatActivity {
     private UserDAO userDAO;
     private Uri selectedImageUri;
     private String oldEmail; 
+    private boolean isUploading = false;
 
     private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     selectedImageUri = result.getData().getData();
-                    Glide.with(this).load(selectedImageUri).circleCrop().into(ivAvatar);
-                    etAvatarUrl.setText(selectedImageUri.toString());
+                    if (selectedImageUri != null) {
+                        Glide.with(this).load(selectedImageUri).circleCrop().into(ivAvatar);
+                        uploadAvatarToFirebase(selectedImageUri);
+                    }
                 }
             }
     );
@@ -111,7 +117,34 @@ public class EditProfileActivity extends AppCompatActivity {
         datePickerDialog.show();
     }
 
+    private void uploadAvatarToFirebase(Uri uri) {
+        isUploading = true;
+        btnSave.setEnabled(false);
+        Toast.makeText(this, "Đang tải ảnh lên Firebase...", Toast.LENGTH_SHORT).show();
+        StorageReference storageRef = FirebaseStorage.getInstance().getReference()
+                .child("avatars/" + UUID.randomUUID().toString() + ".jpg");
+
+        storageRef.putFile(uri).addOnSuccessListener(taskSnapshot -> {
+            storageRef.getDownloadUrl().addOnSuccessListener(downloadUri -> {
+                String imageUrl = downloadUri.toString();
+                etAvatarUrl.setText(imageUrl);
+                isUploading = false;
+                btnSave.setEnabled(true);
+                Toast.makeText(this, "Tải ảnh thành công", Toast.LENGTH_SHORT).show();
+            });
+        }).addOnFailureListener(e -> {
+            isUploading = false;
+            btnSave.setEnabled(true);
+            Toast.makeText(this, "Lỗi tải ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
+    }
+
     private void saveProfileChanges() {
+        if (isUploading) {
+            Toast.makeText(this, "Vui lòng đợi ảnh tải lên xong", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         User user = MainActivity.currentUser;
         if (user == null) return;
 
@@ -133,15 +166,7 @@ public class EditProfileActivity extends AppCompatActivity {
         user.setCompanyAddress(etCompanyAddress.getText().toString().trim());
         user.setDob(etDob.getText().toString().trim());
         user.setGender(rbMale.isChecked() ? "Nam" : "Nữ");
-
-        if (selectedImageUri != null && avatarUrl.equals(selectedImageUri.toString())) {
-            String localPath = saveAvatarToInternalStorage(selectedImageUri);
-            if (localPath != null) {
-                user.setAvatarUrl(localPath);
-            }
-        } else {
-            user.setAvatarUrl(avatarUrl);
-        }
+        user.setAvatarUrl(avatarUrl);
 
         userDAO.updateUserWithOldEmail(user, oldEmail).addOnSuccessListener(aVoid -> {
             MainActivity.currentUser = user;
@@ -150,26 +175,6 @@ public class EditProfileActivity extends AppCompatActivity {
         }).addOnFailureListener(e -> {
             Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });
-    }
-
-    private String saveAvatarToInternalStorage(Uri uri) {
-        try {
-            File folder = new File(getFilesDir(), "avatars");
-            if (!folder.exists()) folder.mkdirs();
-            String fileName = "avatar_" + System.currentTimeMillis() + ".jpg";
-            File file = new File(folder, fileName);
-            InputStream is = getContentResolver().openInputStream(uri);
-            FileOutputStream os = new FileOutputStream(file);
-            byte[] buffer = new byte[1024];
-            int length;
-            while ((length = is.read(buffer)) > 0) os.write(buffer, 0, length);
-            os.close();
-            is.close();
-            return file.getAbsolutePath();
-        } catch (Exception e) {
-            Log.e("AvatarSave", "Error: " + e.getMessage());
-            return null;
-        }
     }
 
     private void setupBottomNavigation() {
