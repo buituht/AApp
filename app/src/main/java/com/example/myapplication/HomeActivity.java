@@ -5,29 +5,42 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 
 public class HomeActivity extends AppCompatActivity {
 
+    private static final String TAG = "HomeActivity";
     private DatabaseHelper dbHelper;
-    private List<Product> productList;
-    private List<Product> filteredList;
-    private ProductAdapter productAdapter;
-    private BottomNavigationView bottomNavigationView;
+    private ProductDAO productDAO;
+    private CategoryDAO categoryDAO;
     
+    private List<Product> productList = new ArrayList<>();
+    private List<Product> filteredList = new ArrayList<>();
+    private ProductAdapter productAdapter;
+    
+    private List<Category> categoryList = new ArrayList<>();
+    private HomeCategoryAdapter categoryAdapter;
+    
+    private BottomNavigationView bottomNavigationView;
     private EditText etSearch;
     private TextView tvCartCount, tvCountdown;
+    private RecyclerView rvCategories;
     private NonScrollListView lvProducts;
     private FloatingActionButton fabAddProduct, fabAddCategory;
+    
+    private String selectedCategoryName = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,13 +48,18 @@ public class HomeActivity extends AppCompatActivity {
         setContentView(R.layout.activity_home);
 
         dbHelper = new DatabaseHelper(this);
+        productDAO = new ProductDAO(this);
+        categoryDAO = new CategoryDAO(this);
+        
         initViews();
-        setupAdapter();
+        setupProductAdapter();
+        setupCategoryAdapter();
         setupClickListeners();
         setupBottomNavigation();
         setupSearch();
         setupFlashSaleCountdown();
-        setupCategoryFilters();
+        
+        loadCategories();
         loadProducts();
         updateAdminUI();
     }
@@ -50,6 +68,7 @@ public class HomeActivity extends AppCompatActivity {
         etSearch = findViewById(R.id.et_search_home);
         tvCartCount = findViewById(R.id.tv_cart_count_home);
         tvCountdown = findViewById(R.id.tv_countdown_home);
+        rvCategories = findViewById(R.id.rv_categories_home);
         lvProducts = findViewById(R.id.lv_recommended_home);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         
@@ -58,6 +77,96 @@ public class HomeActivity extends AppCompatActivity {
         
         findViewById(R.id.btn_cart_home).setOnClickListener(v -> startActivity(new Intent(this, CartActivity.class)));
         findViewById(R.id.btn_notification_home).setOnClickListener(v -> Toast.makeText(this, "Bạn có thông báo mới!", Toast.LENGTH_SHORT).show());
+    }
+
+    private void setupCategoryAdapter() {
+        categoryAdapter = new HomeCategoryAdapter(categoryList, category -> {
+            if (category.getName().equals("Tất cả")) {
+                selectedCategoryName = "";
+            } else {
+                selectedCategoryName = category.getName();
+            }
+            applyFilters();
+        });
+        rvCategories.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        rvCategories.setAdapter(categoryAdapter);
+    }
+
+    private void loadCategories() {
+        categoryDAO.getAllCategories().addOnSuccessListener(queryDocumentSnapshots -> {
+            categoryList.clear();
+            // Thêm mục "Tất cả" mặc định
+            categoryList.add(new Category("all", "Tất cả", ""));
+            
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Category cat = doc.toObject(Category.class);
+                if (cat != null) {
+                    cat.setId(doc.getId());
+                    categoryList.add(cat);
+                }
+            }
+            categoryAdapter.notifyDataSetChanged();
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Error loading categories", e);
+        });
+    }
+
+    private void setupProductAdapter() {
+        productAdapter = new ProductAdapter(this, filteredList, new ProductAdapter.OnProductActionListener() {
+            @Override
+            public void onEdit(Product product) {}
+            @Override
+            public void onDelete(Product product) {}
+            @Override
+            public void onBuy(Product product) {
+                CartActivity.cartItemList.add(product);
+                updateCartBadge();
+                Toast.makeText(HomeActivity.this, "Đã thêm vào giỏ hàng", Toast.LENGTH_SHORT).show();
+            }
+            @Override
+            public void onItemClick(Product product) {
+                Intent intent = new Intent(HomeActivity.this, ProductDetailActivity.class);
+                intent.putExtra("product_data", product);
+                startActivity(intent);
+            }
+        });
+        productAdapter.setShowAdminActions(false);
+        lvProducts.setAdapter(productAdapter);
+    }
+
+    private void loadProducts() {
+        productDAO.getAllProducts().addOnSuccessListener(queryDocumentSnapshots -> {
+            productList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Product p = doc.toObject(Product.class);
+                if (p != null) {
+                    p.setFirebaseId(doc.getId());
+                    p.setId(doc.getId());
+                    productList.add(p);
+                }
+            }
+            applyFilters();
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Error loading products", e);
+        });
+    }
+
+    private void applyFilters() {
+        String searchQuery = etSearch.getText().toString().trim().toLowerCase();
+        filteredList.clear();
+        
+        for (Product p : productList) {
+            boolean matchesCategory = selectedCategoryName.isEmpty() || 
+                    (p.getCategory() != null && p.getCategory().equalsIgnoreCase(selectedCategoryName));
+            
+            boolean matchesSearch = searchQuery.isEmpty() || 
+                    (p.getName() != null && p.getName().toLowerCase().contains(searchQuery));
+            
+            if (matchesCategory && matchesSearch) {
+                filteredList.add(p);
+            }
+        }
+        productAdapter.notifyDataSetChanged();
     }
 
     private void updateAdminUI() {
@@ -85,84 +194,23 @@ public class HomeActivity extends AppCompatActivity {
         });
     }
 
-    private void setupCategoryFilters() {
-        findViewById(R.id.cat_apple_home).setOnClickListener(v -> filterByCategory("Apple"));
-        findViewById(R.id.cat_samsung_home).setOnClickListener(v -> filterByCategory("Samsung"));
-        findViewById(R.id.cat_xiaomi_home).setOnClickListener(v -> filterByCategory("Xiaomi"));
-        findViewById(R.id.cat_all_home).setOnClickListener(v -> filterByCategory(""));
-    }
-
-    private void filterByCategory(String brand) {
-        filteredList.clear();
-        if (brand.isEmpty()) {
-            filteredList.addAll(productList);
-        } else {
-            for (Product p : productList) {
-                if (p.getName().toLowerCase().contains(brand.toLowerCase()) || 
-                   (p.getCategory() != null && p.getCategory().toLowerCase().contains(brand.toLowerCase()))) {
-                    filteredList.add(p);
-                }
-            }
-        }
-        productAdapter.notifyDataSetChanged();
-    }
-
-    private void setupAdapter() {
-        productList = new ArrayList<>();
-        filteredList = new ArrayList<>();
-        productAdapter = new ProductAdapter(this, filteredList, new ProductAdapter.OnProductActionListener() {
-            @Override
-            public void onEdit(Product product) {}
-            @Override
-            public void onDelete(Product product) {}
-            @Override
-            public void onBuy(Product product) {
-                CartActivity.cartItemList.add(product);
-                updateCartBadge();
-                Toast.makeText(HomeActivity.this, "Đã thêm vào giỏ hàng", Toast.LENGTH_SHORT).show();
-            }
-            @Override
-            public void onItemClick(Product product) {
-                Intent intent = new Intent(HomeActivity.this, ProductDetailActivity.class);
-                intent.putExtra("product_data", product);
-                startActivity(intent);
-            }
-        });
-        productAdapter.setShowAdminActions(false);
-        lvProducts.setAdapter(productAdapter);
-    }
-
-    private void updateCartBadge() {
-        if (tvCartCount != null) {
-            tvCartCount.setText(String.valueOf(CartActivity.cartItemList.size()));
-        }
-    }
-
     private void setupSearch() {
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                filterProducts(s.toString());
+                applyFilters();
             }
             @Override
             public void afterTextChanged(Editable s) {}
         });
     }
 
-    private void filterProducts(String query) {
-        filteredList.clear();
-        if (query.isEmpty()) {
-            filteredList.addAll(productList);
-        } else {
-            for (Product p : productList) {
-                if (p.getName().toLowerCase().contains(query.toLowerCase())) {
-                    filteredList.add(p);
-                }
-            }
+    private void updateCartBadge() {
+        if (tvCartCount != null) {
+            tvCartCount.setText(String.valueOf(CartActivity.cartItemList.size()));
         }
-        productAdapter.notifyDataSetChanged();
     }
 
     private void setupBottomNavigation() {
@@ -213,13 +261,8 @@ public class HomeActivity extends AppCompatActivity {
         super.onResume();
         updateAdminUI();
         setupBottomNavigation();
+        loadCategories();
         loadProducts();
         updateCartBadge();
-    }
-
-    private void loadProducts() {
-        productList.clear();
-        productList.addAll(dbHelper.getAllProducts());
-        filterProducts(etSearch.getText().toString());
     }
 }
