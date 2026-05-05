@@ -7,22 +7,23 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 
 public class CategoryAdminActivity extends AppCompatActivity implements CategoryAdapter.OnCategoryActionListener {
 
-    private DatabaseHelper dbHelper;
     private List<Category> categoryList;
     private CategoryAdapter adapter;
     private RecyclerView rvCategories;
+    private CategoryDAO categoryDAO;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_category_admin);
 
-        dbHelper = new DatabaseHelper(this);
+        categoryDAO = new CategoryDAO(this);
         categoryList = new ArrayList<>();
         rvCategories = findViewById(R.id.rv_categories_admin);
         rvCategories.setLayoutManager(new LinearLayoutManager(this));
@@ -42,9 +43,19 @@ public class CategoryAdminActivity extends AppCompatActivity implements Category
     }
 
     private void loadCategories() {
-        categoryList.clear();
-        categoryList.addAll(dbHelper.getAllCategories());
-        adapter.notifyDataSetChanged();
+        categoryDAO.getAllCategoriesFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+            categoryList.clear();
+            for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                Category cat = doc.toObject(Category.class);
+                if (cat != null) {
+                    cat.setId(doc.getId());
+                    categoryList.add(cat);
+                }
+            }
+            adapter.notifyDataSetChanged();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi tải danh mục: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     @Override
@@ -66,9 +77,12 @@ public class CategoryAdminActivity extends AppCompatActivity implements Category
     }
 
     private void deleteCategory(Category category) {
-        dbHelper.deleteCategory(category.getId());
-        Toast.makeText(this, "Đã xóa danh mục", Toast.LENGTH_SHORT).show();
-        loadCategories();
+        categoryDAO.deleteCategory(category.getId()).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, "Đã xóa danh mục khỏi Firebase", Toast.LENGTH_SHORT).show();
+            loadCategories();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi khi xóa: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     @Override
