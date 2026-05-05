@@ -34,7 +34,7 @@ public class VoucherAdminAdapter extends BaseAdapter {
     @Override
     public Object getItem(int position) { return voucherList.get(position); }
     @Override
-    public long getItemId(int position) { return voucherList.get(position).getId(); }
+    public long getItemId(int position) { return position; }
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
