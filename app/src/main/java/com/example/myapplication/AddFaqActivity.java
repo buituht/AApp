@@ -13,9 +13,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 import java.util.UUID;
 
 public class AddFaqActivity extends AppCompatActivity {
@@ -23,8 +22,9 @@ public class AddFaqActivity extends AppCompatActivity {
     private TextInputEditText etQuestion, etAnswer;
     private ImageView ivPreview;
     private MaterialButton btnSelectImage, btnSave, btnCancel;
-    private DatabaseHelper dbHelper;
+    private FaqDAO faqDAO;
     private String selectedImageUrl = "";
+    private Uri selectedImageUri;
     private static final int PICK_IMAGE_REQUEST = 1;
     private boolean isEdit = false;
     private Faq faqToEdit;
@@ -35,10 +35,11 @@ public class AddFaqActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_faq);
 
-        dbHelper = new DatabaseHelper(this);
+        faqDAO = new FaqDAO(this);
         initViews();
 
         progressDialog = new ProgressDialog(this);
+        progressDialog.setMessage("Đang tải...");
         progressDialog.setCancelable(false);
 
         if (getIntent().hasExtra("is_edit")) {
@@ -82,33 +83,8 @@ public class AddFaqActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == PICK_IMAGE_REQUEST && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            Uri imageUri = data.getData();
-            saveImageToLocal(imageUri);
-        }
-    }
-
-    private void saveImageToLocal(Uri uri) {
-        try {
-            InputStream inputStream = getContentResolver().openInputStream(uri);
-            String fileName = "faq_" + System.currentTimeMillis() + ".jpg";
-            File file = new File(getFilesDir(), fileName);
-            FileOutputStream outputStream = new FileOutputStream(file);
-            
-            byte[] buffer = new byte[1024];
-            int length;
-            while ((length = inputStream.read(buffer)) > 0) {
-                outputStream.write(buffer, 0, length);
-            }
-            
-            outputStream.close();
-            inputStream.close();
-            
-            selectedImageUrl = file.getAbsolutePath();
-            ivPreview.setImageURI(Uri.fromFile(file));
-            Toast.makeText(this, "Đã lưu ảnh cục bộ", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(this, "Lỗi lưu ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            selectedImageUri = data.getData();
+            ivPreview.setImageURI(selectedImageUri);
         }
     }
 
@@ -121,18 +97,57 @@ public class AddFaqActivity extends AppCompatActivity {
             return;
         }
 
+        if (selectedImageUri != null) {
+            uploadImageAndSave(question, answer);
+        } else {
+            saveFaqToFirestore(question, answer, selectedImageUrl);
+        }
+    }
+
+    private void uploadImageAndSave(String question, String answer) {
+        progressDialog.setMessage("Đang tải ảnh lên...");
+        progressDialog.show();
+
+        StorageReference storageRef = FirebaseStorage.getInstance().getReference()
+                .child("faqs/" + UUID.randomUUID().toString() + ".jpg");
+
+        storageRef.putFile(selectedImageUri).addOnSuccessListener(taskSnapshot -> {
+            storageRef.getDownloadUrl().addOnSuccessListener(downloadUri -> {
+                progressDialog.dismiss();
+                saveFaqToFirestore(question, answer, downloadUri.toString());
+            });
+        }).addOnFailureListener(e -> {
+            progressDialog.dismiss();
+            Toast.makeText(this, "Lỗi tải ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void saveFaqToFirestore(String question, String answer, String imageUrl) {
+        progressDialog.setMessage("Đang lưu dữ liệu...");
+        progressDialog.show();
+
         if (isEdit && faqToEdit != null) {
             faqToEdit.setQuestion(question);
             faqToEdit.setAnswer(answer);
-            faqToEdit.setImageUrl(selectedImageUrl);
-            dbHelper.updateFaq(faqToEdit);
-            Toast.makeText(this, "Cập nhật thành công", Toast.LENGTH_SHORT).show();
-            finish();
+            faqToEdit.setImageUrl(imageUrl);
+            faqDAO.updateFaq(faqToEdit).addOnSuccessListener(aVoid -> {
+                progressDialog.dismiss();
+                Toast.makeText(this, "Cập nhật thành công", Toast.LENGTH_SHORT).show();
+                finish();
+            }).addOnFailureListener(e -> {
+                progressDialog.dismiss();
+                Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
         } else {
-            Faq newFaq = new Faq(null, question, answer, selectedImageUrl);
-            dbHelper.addFaq(newFaq);
-            Toast.makeText(this, "Đã thêm FAQ mới", Toast.LENGTH_SHORT).show();
-            finish();
+            Faq newFaq = new Faq(null, question, answer, imageUrl);
+            faqDAO.addFaq(newFaq).addOnSuccessListener(aVoid -> {
+                progressDialog.dismiss();
+                Toast.makeText(this, "Đã thêm FAQ mới", Toast.LENGTH_SHORT).show();
+                finish();
+            }).addOnFailureListener(e -> {
+                progressDialog.dismiss();
+                Toast.makeText(this, "Lỗi thêm FAQ: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
         }
     }
 }
