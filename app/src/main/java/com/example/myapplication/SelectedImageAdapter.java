@@ -35,6 +35,8 @@ public class SelectedImageAdapter extends RecyclerView.Adapter<SelectedImageAdap
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         String url = images.get(position);
+        
+        // Handle local URIs and web URLs
         Glide.with(context)
                 .load(GlideUtils.getGlideUrlWithUserAgent(url))
                 .placeholder(R.drawable.ic_ball)
@@ -42,7 +44,10 @@ public class SelectedImageAdapter extends RecyclerView.Adapter<SelectedImageAdap
                 .into(holder.imageView);
         
         holder.btnRemove.setOnClickListener(v -> {
-            if (listener != null) listener.onItemClick(position);
+            int currentPos = holder.getAdapterPosition();
+            if (currentPos != RecyclerView.NO_POSITION && listener != null) {
+                listener.onItemClick(currentPos);
+            }
         });
     }
 
