@@ -44,7 +44,7 @@ public class WarrantyClaimAdminAdapter extends RecyclerView.Adapter<WarrantyClai
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         WarrantyClaim claim = claimList.get(position);
         holder.tvProductName.setText(claim.getProductName());
-        holder.tvUserEmail.setText("User: " + claim.getUserEmail());
+        holder.tvUserEmail.setText("Người dùng: " + claim.getUserEmail());
         holder.tvDescription.setText(claim.getDescription());
         
         SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
@@ -61,16 +61,22 @@ public class WarrantyClaimAdminAdapter extends RecyclerView.Adapter<WarrantyClai
     }
 
     private void setStatusStyle(TextView tvStatus, String status) {
+        if (status == null) return;
+        
         switch (status) {
+            case "Chờ xử lý":
             case "Pending":
                 tvStatus.setTextColor(Color.parseColor("#FFA500")); // Orange
                 break;
+            case "Đang xử lý":
             case "Processing":
                 tvStatus.setTextColor(Color.BLUE);
                 break;
+            case "Đã giải quyết":
             case "Resolved":
                 tvStatus.setTextColor(Color.parseColor("#006400")); // Dark Green
                 break;
+            case "Từ chối":
             case "Rejected":
                 tvStatus.setTextColor(Color.RED);
                 break;
