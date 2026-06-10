@@ -26,7 +26,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class AddProductActivity extends AppCompatActivity {
 
@@ -46,7 +48,8 @@ public class AddProductActivity extends AppCompatActivity {
     private CategoryDAO categoryDAO;
     private boolean isEdit = false;
     private Product productToEdit;
-    private List<String> categoryNamesList = new ArrayList<>();
+    private List<String> categoryDisplayList = new ArrayList<>();
+    private List<Category> fullCategoryList = new ArrayList<>();
     private ArrayAdapter<String> categoryAdapter;
 
     private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
@@ -159,27 +162,57 @@ public class AddProductActivity extends AppCompatActivity {
     }
 
     private void setupSpinner() {
-        categoryAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, categoryNamesList);
+        categoryAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, categoryDisplayList);
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategory.setAdapter(categoryAdapter);
     }
 
     private void loadCategoriesFromFirebase() {
         categoryDAO.getAllCategories().addOnSuccessListener(queryDocumentSnapshots -> {
-            categoryNamesList.clear();
+            fullCategoryList.clear();
+            categoryDisplayList.clear();
+            Map<String, String> idToNameMap = new HashMap<>();
+            
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
                 Category cat = doc.toObject(Category.class);
-                if (cat != null) categoryNamesList.add(cat.getName());
+                if (cat != null) {
+                    cat.setId(doc.getId());
+                    fullCategoryList.add(cat);
+                    idToNameMap.put(cat.getId(), cat.getName());
+                }
             }
-            if (categoryNamesList.isEmpty()) {
-                categoryNamesList.add("Điện thoại");
-                categoryNamesList.add("Máy tính");
-                categoryNamesList.add("Phụ kiện");
+
+            for (Category cat : fullCategoryList) {
+                if (cat.getParentId() != null && !cat.getParentId().isEmpty()) {
+                    String parentName = idToNameMap.get(cat.getParentId());
+                    if (parentName != null) {
+                        categoryDisplayList.add(parentName + " > " + cat.getName());
+                    } else {
+                        categoryDisplayList.add("[Con] " + cat.getName());
+                    }
+                } else {
+                    categoryDisplayList.add(cat.getName());
+                }
+            }
+
+            if (categoryDisplayList.isEmpty()) {
+                categoryDisplayList.add("Điện thoại");
+                categoryDisplayList.add("Laptop");
+                categoryDisplayList.add("Phụ kiện");
             }
             categoryAdapter.notifyDataSetChanged();
             
             if (isEdit && productToEdit != null && productToEdit.getCategory() != null) {
-                int position = categoryAdapter.getPosition(productToEdit.getCategory());
+                // Thử khớp theo tên hiển thị (nếu product lưu tên "Parent > Child") 
+                // hoặc khớp theo tên đơn giản (nếu product chỉ lưu tên brand)
+                int position = -1;
+                for (int i = 0; i < categoryDisplayList.size(); i++) {
+                    if (categoryDisplayList.get(i).equals(productToEdit.getCategory()) || 
+                        categoryDisplayList.get(i).endsWith("> " + productToEdit.getCategory())) {
+                        position = i;
+                        break;
+                    }
+                }
                 if (position >= 0) spinnerCategory.setSelection(position);
             }
         }).addOnFailureListener(e -> {
@@ -230,7 +263,17 @@ public class AddProductActivity extends AppCompatActivity {
         String description = etDescription.getText().toString().trim();
         String warrantyMonths = etWarrantyMonths.getText().toString().trim();
         Object selectedItem = spinnerCategory.getSelectedItem();
-        String category = selectedItem != null ? selectedItem.toString() : "Khác";
+        
+        // Lưu tên danh mục cuối cùng (tên hãng/brand) thay vì cả chuỗi "Parent > Child"
+        String category = "Khác";
+        if (selectedItem != null) {
+            String fullDisplay = selectedItem.toString();
+            if (fullDisplay.contains(" > ")) {
+                category = fullDisplay.substring(fullDisplay.lastIndexOf(" > ") + 3);
+            } else {
+                category = fullDisplay;
+            }
+        }
 
         if (TextUtils.isEmpty(name) || TextUtils.isEmpty(priceStr) || TextUtils.isEmpty(description)) {
             Toast.makeText(this, "Vui lòng nhập đầy đủ thông tin", Toast.LENGTH_SHORT).show();
