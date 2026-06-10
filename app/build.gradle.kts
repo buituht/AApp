@@ -58,11 +58,6 @@ dependencies {
     implementation(libs.firebase.storage)
     implementation(libs.firebase.firestore)
 
-    // Gemini AI
-    implementation(libs.generativeai)
-    // Guava for ListenableFuture (used by Gemini Java SDK)
-    implementation(libs.guava)
-
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
@@ -74,6 +69,6 @@ dependencies {
     // Jsoup for HTML parsing
     implementation(libs.jsoup)
 
-    // Gson for JSON parsing (needed for SQLite complex objects)
+    // Gson for JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")
 }
