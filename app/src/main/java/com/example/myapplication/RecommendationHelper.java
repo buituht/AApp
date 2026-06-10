@@ -6,9 +6,13 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class RecommendationHelper {
     private static final String PREF_NAME = "RecommendationPrefs";
@@ -24,11 +28,9 @@ public class RecommendationHelper {
         gson = new Gson();
     }
 
-    // Ghi lại việc người dùng xem một sản phẩm
     public void recordProductView(Product product) {
         if (product == null) return;
 
-        // Lưu category count
         Map<String, Integer> categoryCounts = getCategoryCounts();
         String category = product.getCategory();
         if (category != null) {
@@ -36,9 +38,8 @@ public class RecommendationHelper {
             saveCategoryCounts(categoryCounts);
         }
 
-        // Lưu danh sách sản phẩm đã xem gần đây
         List<String> viewedProductIds = getViewedProductIds();
-        viewedProductIds.remove(product.getId()); // Xóa nếu đã tồn tại để đưa lên đầu
+        viewedProductIds.remove(product.getId());
         viewedProductIds.add(0, product.getId());
         if (viewedProductIds.size() > MAX_HISTORY) {
             viewedProductIds.remove(viewedProductIds.size() - 1);
@@ -68,7 +69,6 @@ public class RecommendationHelper {
         prefs.edit().putString(KEY_VIEWED_PRODUCTS, gson.toJson(ids)).apply();
     }
 
-    // Lấy Category mà người dùng quan tâm nhất
     public String getMostInterestedCategory() {
         Map<String, Integer> counts = getCategoryCounts();
         String mostInterested = null;
@@ -80,5 +80,47 @@ public class RecommendationHelper {
             }
         }
         return mostInterested;
+    }
+
+    // --- Thuật toán Jaccard Similarity triển khai từ code của bạn ---
+
+    public double similarity(Set<String> a, Set<String> b) {
+        if (a.isEmpty() && b.isEmpty()) return 1.0;
+        Set<String> intersection = new HashSet<>(a);
+        intersection.retainAll(b);
+
+        Set<String> union = new HashSet<>(a);
+        union.addAll(b);
+
+        if (union.isEmpty()) return 0.0;
+        return (double) intersection.size() / union.size();
+    }
+
+    public Set<String> getProductTags(Product p) {
+        Set<String> tags = new HashSet<>();
+        if (p.getName() != null) {
+            String[] words = p.getName().toLowerCase().split("\\s+");
+            for (String w : words) if (w.length() > 2) tags.add(w);
+        }
+        if (p.getCategory() != null) {
+            tags.add(p.getCategory().toLowerCase());
+        }
+        return tags;
+    }
+
+    public List<Product> recommendSimilarProducts(
+            Set<String> userInterestTags,
+            List<Product> allProducts,
+            List<String> excludeIds,
+            int limit
+    ) {
+        return allProducts.stream()
+                .filter(p -> !excludeIds.contains(p.getId()))
+                .sorted((p1, p2) -> Double.compare(
+                        similarity(userInterestTags, getProductTags(p2)),
+                        similarity(userInterestTags, getProductTags(p1))
+                ))
+                .limit(limit)
+                .collect(Collectors.toList());
     }
 }
