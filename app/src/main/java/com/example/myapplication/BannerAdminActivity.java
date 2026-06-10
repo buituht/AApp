@@ -192,7 +192,7 @@ public class BannerAdminActivity extends AppCompatActivity {
     }
 
     private void loadBanners() {
-        bannerDAO.getAllBannersFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+        bannerDAO.getAllBanners().addOnSuccessListener(queryDocumentSnapshots -> {
             bannerList.clear();
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
                 Banner banner = doc.toObject(Banner.class);
