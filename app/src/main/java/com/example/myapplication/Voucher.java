@@ -7,6 +7,7 @@ public class Voucher implements Serializable {
     private String code;
     private String description;
     private long discountValue;
+    private long maxDiscount;
     private String type; // "PERCENT" or "FIXED"
     private long minOrderAmount;
     private long startDate;
@@ -25,6 +26,11 @@ public class Voucher implements Serializable {
 
     public long getDiscountValue() { return discountValue; }
     public void setDiscountValue(long discountValue) { this.discountValue = discountValue; }
+
+    public long getDiscountPercent() { return discountValue; }
+
+    public long getMaxDiscount() { return maxDiscount; }
+    public void setMaxDiscount(long maxDiscount) { this.maxDiscount = maxDiscount; }
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
