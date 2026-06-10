@@ -22,7 +22,6 @@ import java.util.List;
 public class HomeActivity extends AppCompatActivity {
 
     private static final String TAG = "HomeActivity";
-    private DatabaseHelper dbHelper;
     private ProductDAO productDAO;
     private CategoryDAO categoryDAO;
     
@@ -47,9 +46,8 @@ public class HomeActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
 
-        dbHelper = new DatabaseHelper(this);
-        productDAO = new ProductDAO(this);
-        categoryDAO = new CategoryDAO(this);
+        productDAO = new ProductDAO();
+        categoryDAO = new CategoryDAO();
         
         initViews();
         setupProductAdapter();
