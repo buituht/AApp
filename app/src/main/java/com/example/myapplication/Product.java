@@ -1,12 +1,12 @@
 package com.example.myapplication;
 
+import com.google.firebase.firestore.Exclude;
 import com.google.firebase.firestore.PropertyName;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Product implements Serializable {
-    private String firebaseId;
     private String name;
     private long price;
     private long discountPrice;
@@ -24,15 +24,22 @@ public class Product implements Serializable {
     private String rom;
     private String camera;
     private String battery;
-    private String warranty; // Trường bảo hành mới
-    private Object id;
+    private String warranty; 
+    
+    @Exclude
+    private String documentId; // Dùng để lưu ID từ Firestore thủ công
+    
+    private String firebaseId; // Trường khớp với dữ liệu trên Firestore
 
     public Product() {
     }
 
-    @PropertyName("firebaseId")
+    @Exclude
+    public String getDocumentId() { return documentId; }
+    @Exclude
+    public void setDocumentId(String documentId) { this.documentId = documentId; }
+
     public String getFirebaseId() { return firebaseId; }
-    @PropertyName("firebaseId")
     public void setFirebaseId(String firebaseId) { this.firebaseId = firebaseId; }
 
     public String getName() { return name; }
@@ -48,14 +55,18 @@ public class Product implements Serializable {
     public void setDescription(String description) { this.description = description; }
 
     public List<String> getImages() {
-        if (images instanceof List) {
-            return (List<String>) images;
+        List<String> result = new ArrayList<>();
+        if (images instanceof List<?>) {
+            List<?> list = (List<?>) images;
+            for (Object obj : list) {
+                if (obj instanceof String) {
+                    result.add((String) obj);
+                }
+            }
         } else if (images instanceof String) {
-            List<String> list = new ArrayList<>();
-            list.add((String) images);
-            return list;
+            result.add((String) images);
         }
-        return new ArrayList<>();
+        return result;
     }
     public void setImages(Object images) { this.images = images; }
 
@@ -104,6 +115,13 @@ public class Product implements Serializable {
     public String getWarranty() { return warranty; }
     public void setWarranty(String warranty) { this.warranty = warranty; }
 
-    public String getId() { return String.valueOf(id); }
-    public void setId(Object id) { this.id = id; }
+    public String getId() { 
+        if (firebaseId != null && !firebaseId.isEmpty()) return firebaseId;
+        if (documentId != null && !documentId.isEmpty()) return documentId;
+        return null;
+    }
+
+    public void setId(String id) {
+        this.documentId = id;
+    }
 }
