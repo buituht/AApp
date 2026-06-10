@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -101,21 +102,69 @@ public class ProfileActivity extends AppCompatActivity {
 
             @Override
             public void onCancelOrder(Order order) {
-                confirmCancelOrder(order);
+                showCancelOrderDialog(order);
             }
         });
         lvOrders.setAdapter(orderAdapter);
     }
 
-    private void confirmCancelOrder(Order order) {
-        new AlertDialog.Builder(this)
-                .setTitle("Xác nhận hủy đơn")
-                .setMessage("Bạn có chắc chắn muốn hủy đơn hàng này không?")
-                .setPositiveButton("Hủy đơn", (dialog, which) -> {
-                    updateOrderStatus(order, "Đã hủy");
-                })
-                .setNegativeButton("Quay lại", null)
-                .show();
+    private void showCancelOrderDialog(Order order) {
+        String[] reasons = {
+            "Muốn thay đổi địa chỉ nhận hàng",
+            "Muốn thay đổi sản phẩm (size, màu, số lượng...)",
+            "Tìm thấy giá rẻ hơn ở nơi khác",
+            "Không còn nhu cầu mua nữa",
+            "Đặt trùng đơn hàng",
+            "Lý do khác"
+        };
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Chọn lý do hủy đơn hàng");
+        builder.setItems(reasons, (dialog, which) -> {
+            String reason = reasons[which];
+            if (reason.equals("Lý do khác")) {
+                showOtherReasonDialog(order);
+            } else {
+                performCancelOrder(order, reason);
+            }
+        });
+        builder.setNegativeButton("Quay lại", null);
+        builder.show();
+    }
+
+    private void showOtherReasonDialog(Order order) {
+        EditText etReason = new EditText(this);
+        etReason.setHint("Nhập lý do hủy đơn hàng...");
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT);
+        etReason.setLayoutParams(lp);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Lý do hủy đơn hàng khác");
+        builder.setView(etReason);
+        builder.setPositiveButton("Gửi", (dialog, which) -> {
+            String reason = etReason.getText().toString().trim();
+            if (reason.isEmpty()) {
+                Toast.makeText(this, "Vui lòng nhập lý do", Toast.LENGTH_SHORT).show();
+                showOtherReasonDialog(order);
+            } else {
+                performCancelOrder(order, reason);
+            }
+        });
+        builder.setNegativeButton("Quay lại", (dialog, which) -> showCancelOrderDialog(order));
+        builder.show();
+    }
+
+    private void performCancelOrder(Order order, String reason) {
+        if (order.getOrderId() == null) return;
+        
+        orderDAO.cancelOrderWithReason(order.getOrderId(), reason).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, "Đã hủy đơn hàng thành công", Toast.LENGTH_SHORT).show();
+            loadOrders();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Lỗi khi hủy đơn: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void showUpdateStatusDialog(Order order) {
@@ -126,9 +175,30 @@ public class ProfileActivity extends AppCompatActivity {
         builder.setTitle("Cập nhật trạng thái đơn hàng");
         builder.setItems(statuses, (dialog, which) -> {
             String newStatus = statuses[which];
-            updateOrderStatus(order, newStatus);
+            if (newStatus.equals("Đã hủy")) {
+                // Nếu admin chọn hủy, cũng có thể cần nhập lý do
+                showAdminCancelReasonDialog(order);
+            } else {
+                updateOrderStatus(order, newStatus);
+            }
         });
         builder.show();
+    }
+
+    private void showAdminCancelReasonDialog(Order order) {
+        EditText etReason = new EditText(this);
+        etReason.setHint("Nhập lý do hủy đơn (Admin)...");
+        
+        new AlertDialog.Builder(this)
+                .setTitle("Lý do hủy đơn hàng")
+                .setView(etReason)
+                .setPositiveButton("Xác nhận hủy", (dialog, which) -> {
+                    String reason = etReason.getText().toString().trim();
+                    if (reason.isEmpty()) reason = "Hủy bởi Admin";
+                    performCancelOrder(order, reason);
+                })
+                .setNegativeButton("Quay lại", null)
+                .show();
     }
 
     private void updateOrderStatus(Order order, String newStatus) {
