@@ -15,12 +15,19 @@
         <!-- For Google Play Services -->
         <package android:name="com.google.android.gms" />
         <package android:name="com.android.vending" />
+        <package android:name="com.google.android.gsf" />
 
         <intent>
             <action android:name="com.google.android.gms.auth.service.START" />
         </intent>
         <intent>
             <action android:name="com.google.android.gms.common.service.START" />
+        </intent>
+        <intent>
+            <action android:name="com.google.android.gms.ads.identifier.service.START" />
+        </intent>
+        <intent>
+            <action android:name="com.google.android.c2dm.intent.RECEIVE" />
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
