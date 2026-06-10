@@ -22,7 +22,9 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -32,7 +34,6 @@ public class MainActivity extends AppCompatActivity {
     private BannerDAO bannerDAO;
     private FaqDAO faqDAO;
     private RecommendationHelper recommendationHelper;
-    private GeminiRecommendationService geminiService;
     
     private List<Product> productList;
     private List<Product> filteredList;
@@ -52,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvTitleRecommendations;
     
     private List<Category> categoryList;
+    private List<Category> allCategoriesFromFirebase = new ArrayList<>();
     private HomeCategoryAdapter categoryAdapter;
     private RecyclerView rvCategories;
 
@@ -88,7 +90,6 @@ public class MainActivity extends AppCompatActivity {
         bannerDAO = new BannerDAO(this);
         faqDAO = new FaqDAO(this);
         recommendationHelper = new RecommendationHelper(this);
-        geminiService = new GeminiRecommendationService();
 
         initViews();
         setupDataLists();
@@ -130,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadBannersFromFirebase() {
-        bannerDAO.getAllBannersFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+        bannerDAO.getAllBanners().addOnSuccessListener(queryDocumentSnapshots -> {
             bannerList.clear();
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
                 Banner banner = doc.toObject(Banner.class);
@@ -157,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadFaqsFromFirebase() {
-        faqDAO.getAllFaqsFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+        faqDAO.getAllFaqs().addOnSuccessListener(queryDocumentSnapshots -> {
             faqList.clear();
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
                 Faq faq = doc.toObject(Faq.class);
@@ -186,24 +187,62 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadCategoriesFromFirebase() {
-        categoryDAO.getAllCategoriesFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+        categoryDAO.getAllCategories().addOnSuccessListener(queryDocumentSnapshots -> {
+            allCategoriesFromFirebase.clear();
             categoryList.clear();
+            
+            categoryList.add(new Category("all", "Tất cả", ""));
+            
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
                 Category cat = doc.toObject(Category.class);
-                if (cat != null) categoryList.add(cat);
+                if (cat != null) {
+                    cat.setId(doc.getId());
+                    allCategoriesFromFirebase.add(cat);
+                }
             }
-            categoryList.add(new Category("all", "Tất cả", ""));
+
+            for (Category cat : allCategoriesFromFirebase) {
+                if (cat.getParentId() == null || cat.getParentId().isEmpty()) {
+                    categoryList.add(cat);
+                }
+            }
+            
+            if (categoryList.size() <= 1) {
+                categoryList.add(new Category("cat_laptop", "Laptop", ""));
+                categoryList.add(new Category("cat_phone", "Điện thoại", ""));
+                categoryList.add(new Category("cat_accessory", "Phụ kiện", ""));
+            }
+            
             categoryAdapter.notifyDataSetChanged();
-        }).addOnFailureListener(e -> Log.e(TAG, "Error loading categories", e));
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Error loading categories", e);
+            categoryList.clear();
+            categoryList.add(new Category("all", "Tất cả", ""));
+            categoryList.add(new Category("cat_laptop", "Laptop", ""));
+            categoryList.add(new Category("cat_phone", "Điện thoại", ""));
+            categoryList.add(new Category("cat_accessory", "Phụ kiện", ""));
+            categoryAdapter.notifyDataSetChanged();
+        });
     }
 
-    private void filterByCategory(String categoryName) {
+    private void filterByCategory(Category selectedCat) {
         filteredList.clear();
-        if (categoryName.isEmpty() || categoryName.equalsIgnoreCase("Tất cả")) {
+        String categoryName = selectedCat.getName();
+        
+        if (categoryName.equalsIgnoreCase("Tất cả")) {
             filteredList.addAll(productList);
         } else {
+            Set<String> targetCategoryNames = new HashSet<>();
+            targetCategoryNames.add(categoryName.toLowerCase());
+            
+            for (Category cat : allCategoriesFromFirebase) {
+                if (selectedCat.getId().equals(cat.getParentId())) {
+                    targetCategoryNames.add(cat.getName().toLowerCase());
+                }
+            }
+
             for (Product p : productList) {
-                if ((p.getCategory() != null && p.getCategory().equalsIgnoreCase(categoryName))) {
+                if (p.getCategory() != null && targetCategoryNames.contains(p.getCategory().toLowerCase())) {
                     filteredList.add(p);
                 }
             }
@@ -258,7 +297,7 @@ public class MainActivity extends AppCompatActivity {
         recommendedAdapter.setShowAdminActions(false);
         lvRecommendations.setAdapter(recommendedAdapter);
         
-        categoryAdapter = new HomeCategoryAdapter(categoryList, category -> filterByCategory(category.getName()));
+        categoryAdapter = new HomeCategoryAdapter(categoryList, category -> filterByCategory(category));
         rvCategories.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         rvCategories.setAdapter(categoryAdapter);
 
@@ -388,41 +427,33 @@ public class MainActivity extends AppCompatActivity {
             loadLegacyRecommendations();
             return;
         }
+        // Gợi ý sử dụng thuật toán Jaccard nội bộ, không dùng Gemini AI
+        loadJaccardRecommendations();
+    }
 
-        List<Product> viewedHistory = new ArrayList<>();
+    private void loadJaccardRecommendations() {
+        tvTitleRecommendations.setText("Gợi ý riêng cho bạn");
+        tvTitleRecommendations.setVisibility(View.VISIBLE);
+
+        List<String> viewedIds = recommendationHelper.getViewedProductIds();
+        if (viewedIds.isEmpty()) {
+            loadLegacyRecommendations();
+            return;
+        }
+
+        Set<String> userInterestTags = new HashSet<>();
         for (String id : viewedIds) {
             for (Product p : productList) {
                 if (p.getId().equals(id)) {
-                    viewedHistory.add(p);
+                    userInterestTags.addAll(recommendationHelper.getProductTags(p));
                     break;
                 }
             }
         }
 
-        tvTitleRecommendations.setText("Gợi ý riêng cho bạn (AI)");
-        geminiService.getRecommendations(viewedHistory, productList, new GeminiRecommendationService.RecommendationCallback() {
-            @Override
-            public void onRecommendationReceived(List<String> recommendedProductIds) {
-                runOnUiThread(() -> {
-                    recommendedList.clear();
-                    for (String id : recommendedProductIds) {
-                        for (Product p : productList) {
-                            if (p.getId().equals(id)) {
-                                recommendedList.add(p);
-                                break;
-                            }
-                        }
-                    }
-                    updateRecommendationUI();
-                });
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                Log.e(TAG, "Gemini Error, fallback to legacy", t);
-                runOnUiThread(() -> loadLegacyRecommendations());
-            }
-        });
+        recommendedList.clear();
+        recommendedList.addAll(recommendationHelper.recommendSimilarProducts(userInterestTags, productList, viewedIds, 6));
+        updateRecommendationUI();
     }
 
     private void loadLegacyRecommendations() {
