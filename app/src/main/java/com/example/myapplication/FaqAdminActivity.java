@@ -65,7 +65,7 @@ public class FaqAdminActivity extends AppCompatActivity {
     }
 
     private void loadFaqsFromFirebase() {
-        faqDAO.getAllFaqsFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
+        faqDAO.getAllFaqs().addOnSuccessListener(queryDocumentSnapshots -> {
             faqList.clear();
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
                 Faq faq = doc.toObject(Faq.class);
