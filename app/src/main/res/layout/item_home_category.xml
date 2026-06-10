@@ -5,18 +5,24 @@
     android:layout_height="wrap_content"
     android:gravity="center"
     android:orientation="vertical"
-    android:padding="12dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
     android:clipChildren="false"
-    android:clipToPadding="false">
+    android:clipToPadding="false"
+    android:background="?attr/selectableItemBackgroundBorderless"
+    android:clickable="true"
+    android:focusable="true">
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/card_category"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        app:cardCornerRadius="32dp"
-        app:cardElevation="4dp"
-        app:strokeWidth="0dp"
-        app:strokeColor="@color/purple_main"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        app:cardCornerRadius="30dp"
+        app:cardElevation="2dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="#F5F5F5"
         app:cardBackgroundColor="@color/white">
 
         <ImageView
@@ -24,6 +30,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="centerInside"
+            android:padding="12dp"
             android:src="@drawable/ic_ball" />
 
     </com.google.android.material.card.MaterialCardView>
@@ -32,12 +39,14 @@
         android:id="@+id/tv_category_name"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
         android:ellipsize="end"
         android:maxLines="1"
+        android:gravity="center"
         android:text="Category"
         android:textColor="#444444"
-        android:textSize="13sp"
-        android:textStyle="normal" />
+        android:textSize="12sp"
+        android:textStyle="normal"
+        android:maxWidth="75dp" />
 
 </LinearLayout>
