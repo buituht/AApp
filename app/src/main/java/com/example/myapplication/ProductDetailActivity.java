@@ -36,10 +36,11 @@ public class ProductDetailActivity extends AppCompatActivity {
     private BottomNavigationView bottomNavigationView;
     private ImageButton btnFavorite;
     private Product product;
-    private DatabaseHelper dbHelper;
     private ProductDAO productDAO;
+    private FavoriteDAO favoriteDAO;
     private ReviewDAO reviewDAO;
     private RecommendationHelper recommendationHelper;
+    private boolean isFavorite = false;
 
     // Gallery views
     private ImageView imgDetail;
@@ -97,8 +98,8 @@ public class ProductDetailActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         try {
             setContentView(R.layout.activity_product_detail);
-            dbHelper = new DatabaseHelper(this);
-            productDAO = new ProductDAO(this);
+            productDAO = new ProductDAO();
+            favoriteDAO = new FavoriteDAO();
             reviewDAO = new ReviewDAO(this);
             recommendationHelper = new RecommendationHelper(this);
 
@@ -416,12 +417,44 @@ public class ProductDetailActivity extends AppCompatActivity {
     }
 
     private void updateFavoriteIcon() {
-        // Favorite update logic
+        if (product == null || !MainActivity.isLoggedIn || MainActivity.currentUser == null) return;
+        favoriteDAO.isFavorite(MainActivity.currentUser.getEmail(), product.getId())
+                .addOnSuccessListener(documentSnapshot -> {
+                    isFavorite = documentSnapshot.exists();
+                    if (isFavorite) {
+                        btnFavorite.setImageResource(R.drawable.ic_heart_solid);
+                    } else {
+                        btnFavorite.setImageResource(R.drawable.ic_heart_outline);
+                    }
+                });
     }
 
     private void toggleFavorite() {
-        if (product == null || !MainActivity.isLoggedIn || MainActivity.currentUser == null) return;
-        // Toggle logic
+        if (product == null || !MainActivity.isLoggedIn || MainActivity.currentUser == null) {
+            Toast.makeText(this, "Vui lòng đăng nhập để thực hiện!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String email = MainActivity.currentUser.getEmail();
+        String productId = product.getId();
+
+        if (isFavorite) {
+            favoriteDAO.removeFavorite(email, productId).addOnSuccessListener(aVoid -> {
+                isFavorite = false;
+                btnFavorite.setImageResource(R.drawable.ic_heart_outline);
+                Toast.makeText(this, "Đã xóa khỏi yêu thích", Toast.LENGTH_SHORT).show();
+            }).addOnFailureListener(e -> {
+                Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
+        } else {
+            favoriteDAO.addFavorite(email, productId).addOnSuccessListener(aVoid -> {
+                isFavorite = true;
+                btnFavorite.setImageResource(R.drawable.ic_heart_solid);
+                Toast.makeText(this, "Đã thêm vào yêu thích", Toast.LENGTH_SHORT).show();
+            }).addOnFailureListener(e -> {
+                Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
+        }
     }
 
     private void initProductContent() {
@@ -542,5 +575,6 @@ public class ProductDetailActivity extends AppCompatActivity {
         setupReviewSection();
         loadReviews();
         loadRelatedProductsFromFirebase();
+        updateFavoriteIcon();
     }
 }
