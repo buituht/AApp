@@ -11,6 +11,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import com.bumptech.glide.Glide;
+import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,7 +21,7 @@ public class ProductAdapter extends BaseAdapter {
     private OnProductActionListener listener;
     private List<String> favoriteIds = new ArrayList<>();
     private boolean showAdminActions = false;
-    private UserDAO userDAO;
+    private FavoriteDAO favoriteDAO;
 
     public interface OnProductActionListener {
         void onEdit(Product product);
@@ -33,7 +34,7 @@ public class ProductAdapter extends BaseAdapter {
         this.context = context;
         this.productList = productList;
         this.listener = listener;
-        this.userDAO = new UserDAO(context);
+        this.favoriteDAO = new FavoriteDAO();
         loadFavoriteIds();
     }
 
@@ -44,17 +45,15 @@ public class ProductAdapter extends BaseAdapter {
 
     public void loadFavoriteIds() {
         if (MainActivity.isLoggedIn && MainActivity.currentUser != null) {
-            userDAO.getFavorites(MainActivity.currentUser.getEmail()).addOnSuccessListener(documentSnapshot -> {
-                if (documentSnapshot.exists()) {
-                    List<String> favs = (List<String>) documentSnapshot.get("favorites");
-                    if (favs != null) {
-                        favoriteIds.clear();
-                        favoriteIds.addAll(favs);
-                        notifyDataSetChanged();
+            favoriteDAO.getFavorites(MainActivity.currentUser.getEmail()).addOnSuccessListener(queryDocumentSnapshots -> {
+                favoriteIds.clear();
+                for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                    String pid = doc.getString("productId");
+                    if (pid != null) {
+                        favoriteIds.add(pid);
                     }
                 }
-            }).addOnFailureListener(e -> {
-                Toast.makeText(context, "Lỗi tải yêu thích: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                notifyDataSetChanged();
             });
         }
     }
@@ -83,7 +82,6 @@ public class ProductAdapter extends BaseAdapter {
         ImageView img = convertView.findViewById(R.id.img_product);
         TextView name = convertView.findViewById(R.id.tv_product_name);
         TextView category = convertView.findViewById(R.id.tv_product_category);
-        TextView description = convertView.findViewById(R.id.tv_product_description);
         TextView price = convertView.findViewById(R.id.tv_product_price);
         TextView discountPrice = convertView.findViewById(R.id.tv_product_discount_price);
         TextView tvTag = convertView.findViewById(R.id.tv_tag);
@@ -144,28 +142,16 @@ public class ProductAdapter extends BaseAdapter {
         if (product.getDiscountPrice() > 0) {
             discountPrice.setVisibility(View.VISIBLE);
             discountPrice.setText(String.format("%,d VNĐ", product.getDiscountPrice()));
-            
             price.setText(String.format("%,d VNĐ", product.getPrice()));
             price.setPaintFlags(price.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-            price.setTextColor(context.getResources().getColor(android.R.color.darker_gray));
-            price.setTextSize(13);
         } else {
             discountPrice.setVisibility(View.GONE);
             price.setText(String.format("%,d VNĐ", product.getPrice()));
             price.setPaintFlags(price.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
-            price.setTextColor(context.getResources().getColor(android.R.color.holo_red_dark));
-            price.setTextSize(16);
-            price.setTypeface(null, android.graphics.Typeface.BOLD);
-        }
-
-        if (description != null) {
-            description.setText(product.getDescription() != null ? product.getDescription() : "Mô tả đang cập nhật...");
         }
 
         convertView.setOnClickListener(v -> {
-            if (listener != null) {
-                listener.onItemClick(product);
-            }
+            if (listener != null) listener.onItemClick(product);
         });
 
         btnFavorite.setOnClickListener(v -> toggleFavorite(product));
@@ -185,14 +171,16 @@ public class ProductAdapter extends BaseAdapter {
         String productId = product.getId();
 
         if (favoriteIds.contains(productId)) {
-            userDAO.removeFavorite(userEmail, productId).addOnSuccessListener(aVoid -> {
+            favoriteDAO.removeFavorite(userEmail, productId).addOnSuccessListener(aVoid -> {
                 favoriteIds.remove(productId);
                 notifyDataSetChanged();
+                Toast.makeText(context, "Đã xóa khỏi yêu thích", Toast.LENGTH_SHORT).show();
             });
         } else {
-            userDAO.addFavorite(userEmail, productId).addOnSuccessListener(aVoid -> {
+            favoriteDAO.addFavorite(userEmail, productId).addOnSuccessListener(aVoid -> {
                 favoriteIds.add(productId);
                 notifyDataSetChanged();
+                Toast.makeText(context, "Đã thêm vào yêu thích", Toast.LENGTH_SHORT).show();
             });
         }
     }
