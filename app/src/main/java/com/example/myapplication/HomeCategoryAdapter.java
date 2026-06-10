@@ -46,23 +46,25 @@ public class HomeCategoryAdapter extends RecyclerView.Adapter<HomeCategoryAdapte
         String imageUrl = category.getImageUrl();
         boolean hasImage = imageUrl != null && !imageUrl.isEmpty();
 
-        // 1. Phản hồi thị giác khi chọn (Selection Visual)
+        // 1. Hiệu ứng Selection (Sang trọng & Nhẹ nhàng)
         if (isSelected) {
-            holder.cardCategory.setStrokeWidth(4); // Viền màu tím
+            holder.cardCategory.setStrokeWidth(3); // Viền vàng mảnh
             holder.cardCategory.setStrokeColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.purple_main));
-            holder.cardCategory.setCardElevation(8f); // Đổ bóng cao hơn
+            holder.cardCategory.setCardElevation(6f); // Đổ bóng nhẹ
+            holder.cardCategory.setCardBackgroundColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.purple_light));
             holder.tvName.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.purple_main));
             holder.tvName.setTypeface(null, Typeface.BOLD);
         } else {
             holder.cardCategory.setStrokeWidth(0);
             holder.cardCategory.setCardElevation(2f);
-            holder.tvName.setTextColor(Color.parseColor("#424242"));
+            holder.cardCategory.setCardBackgroundColor(Color.WHITE);
+            holder.tvName.setTextColor(Color.parseColor("#757575"));
             holder.tvName.setTypeface(null, Typeface.NORMAL);
         }
 
-        // 2. Xử lý hiển thị hình ảnh
+        // 2. Xử lý hiển thị hình ảnh/icon
         if (hasImage) {
-            holder.ivImage.setPadding(0, 0, 0, 0); // Không padding cho ảnh thực tế
+            holder.ivImage.setPadding(0, 0, 0, 0); 
             holder.ivImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
             holder.ivImage.clearColorFilter();
             
@@ -74,20 +76,21 @@ public class HomeCategoryAdapter extends RecyclerView.Adapter<HomeCategoryAdapte
                     .circleCrop()
                     .into(holder.ivImage);
         } else {
-            // Hiển thị icon mặc định
-            holder.ivImage.setPadding(32, 32, 32, 32); 
+            // Icon mặc định với padding hợp lý (không quá nhỏ)
             holder.ivImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            if (category.getName().equals("Tất cả")) {
+            holder.ivImage.setPadding(32, 32, 32, 32); 
+            
+            if (category.getName().equalsIgnoreCase("Tất cả")) {
                 holder.ivImage.setImageResource(android.R.drawable.ic_menu_sort_by_size);
             } else {
                 holder.ivImage.setImageResource(R.drawable.ic_ball);
             }
 
-            // Đổi màu icon dựa trên trạng thái chọn
+            // Đổi màu icon theo trạng thái chọn (vàng gold hoặc xám)
             if (isSelected) {
                 holder.ivImage.setColorFilter(ContextCompat.getColor(holder.itemView.getContext(), R.color.purple_main));
             } else {
-                holder.ivImage.setColorFilter(Color.parseColor("#757575"));
+                holder.ivImage.setColorFilter(Color.parseColor("#BDBDBD"));
             }
         }
 
@@ -95,8 +98,10 @@ public class HomeCategoryAdapter extends RecyclerView.Adapter<HomeCategoryAdapte
         holder.itemView.setOnClickListener(v -> {
             int previousSelected = selectedPosition;
             selectedPosition = holder.getAdapterPosition();
-            notifyItemChanged(previousSelected);
-            notifyItemChanged(selectedPosition);
+            if (previousSelected != selectedPosition) {
+                notifyItemChanged(previousSelected);
+                notifyItemChanged(selectedPosition);
+            }
             if (listener != null) {
                 listener.onCategoryClick(category);
             }
@@ -115,7 +120,6 @@ public class HomeCategoryAdapter extends RecyclerView.Adapter<HomeCategoryAdapte
 
         public CategoryViewHolder(@NonNull View itemView) {
             super(itemView);
-            // SỬA LỖI: Tìm ID chính xác từ XML
             cardCategory = itemView.findViewById(R.id.card_category);
             ivImage = itemView.findViewById(R.id.iv_category_icon);
             tvName = itemView.findViewById(R.id.tv_category_name);
