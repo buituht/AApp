@@ -7,9 +7,10 @@ import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
-import android.util.Log;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.ImageView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
@@ -26,7 +27,12 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class AddCategoryActivity extends AppCompatActivity {
@@ -37,11 +43,14 @@ public class AddCategoryActivity extends AppCompatActivity {
     private ImageView ivPreview;
     private TextView tvTitle;
     private RecyclerView rvCategories;
+    private Spinner spParentCategory;
     private BottomNavigationView bottomNavigationView;
     
     private CategoryDAO categoryDAO;
     private CategoryAdapter categoryAdapter;
     private List<Category> categoryList;
+    private List<Category> parentCategoryList;
+    private ArrayAdapter<String> parentAdapter;
     
     private boolean isEditMode = false;
     private Category selectedCategory = null;
@@ -97,7 +106,13 @@ public class AddCategoryActivity extends AppCompatActivity {
         ivPreview = findViewById(R.id.iv_category_preview);
         tvTitle = findViewById(R.id.tv_add_category_title);
         rvCategories = findViewById(R.id.rv_categories_manage);
+        spParentCategory = findViewById(R.id.sp_parent_category);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
+        
+        parentCategoryList = new ArrayList<>();
+        parentAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new ArrayList<>());
+        parentAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spParentCategory.setAdapter(parentAdapter);
     }
 
     private void setupBottomNavigation() {
@@ -164,19 +179,106 @@ public class AddCategoryActivity extends AppCompatActivity {
     }
 
     private void loadCategories() {
-        categoryDAO.getAllCategoriesFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
-            categoryList.clear();
+        categoryDAO.getAllCategories().addOnSuccessListener(queryDocumentSnapshots -> {
+            List<Category> rawList = new ArrayList<>();
+            parentCategoryList.clear();
+            List<String> parentNames = new ArrayList<>();
+            parentNames.add("Không có (Danh mục chính)");
+            
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
                 Category cat = doc.toObject(Category.class);
                 if (cat != null) {
                     cat.setId(doc.getId());
-                    categoryList.add(cat);
+                    rawList.add(cat);
+                    
+                    // Chỉ cho phép các danh mục không có parent làm parent (level 1)
+                    if (cat.getParentId() == null || cat.getParentId().isEmpty()) {
+                        parentCategoryList.add(cat);
+                        parentNames.add(cat.getName());
+                    }
                 }
             }
-            categoryAdapter.notifyDataSetChanged();
+            
+            // Tổ chức danh sách hiển thị phân cấp
+            organizeCategoriesHierarchically(rawList);
+            
+            // Cập nhật Spinner
+            parentAdapter.clear();
+            parentAdapter.addAll(parentNames);
+            parentAdapter.notifyDataSetChanged();
+            
+            if (isEditMode && selectedCategory != null) {
+                updateParentSpinnerSelection();
+            }
         }).addOnFailureListener(e -> {
             Toast.makeText(this, "Lỗi tải danh mục: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });
+    }
+
+    private void organizeCategoriesHierarchically(List<Category> rawList) {
+        categoryList.clear();
+        Map<String, List<Category>> childrenMap = new HashMap<>();
+        List<Category> rootCategories = new ArrayList<>();
+        Set<String> addedIds = new HashSet<>();
+
+        // Phân loại gốc và con
+        for (Category cat : rawList) {
+            String pId = cat.getParentId();
+            if (pId == null || pId.isEmpty()) {
+                rootCategories.add(cat);
+            } else {
+                if (!childrenMap.containsKey(pId)) {
+                    childrenMap.put(pId, new ArrayList<>());
+                }
+                childrenMap.get(pId).add(cat);
+            }
+        }
+
+        // Sắp xếp gốc theo tên
+        Collections.sort(rootCategories, (c1, c2) -> c1.getName().compareToIgnoreCase(c2.getName()));
+
+        // Thêm vào list đệ quy
+        for (Category root : rootCategories) {
+            addCategoryAndChildrenToList(root, childrenMap, addedIds);
+        }
+
+        // Xử lý các mục mồ côi (nếu có)
+        for (Category cat : rawList) {
+            if (!addedIds.contains(cat.getId())) {
+                categoryList.add(cat);
+                addedIds.add(cat.getId());
+            }
+        }
+        
+        categoryAdapter.notifyDataSetChanged();
+    }
+
+    private void addCategoryAndChildrenToList(Category parent, Map<String, List<Category>> childrenMap, Set<String> addedIds) {
+        if (addedIds.contains(parent.getId())) return;
+        
+        categoryList.add(parent);
+        addedIds.add(parent.getId());
+        
+        List<Category> children = childrenMap.get(parent.getId());
+        if (children != null) {
+            Collections.sort(children, (c1, c2) -> c1.getName().compareToIgnoreCase(c2.getName()));
+            for (Category child : children) {
+                addCategoryAndChildrenToList(child, childrenMap, addedIds);
+            }
+        }
+    }
+
+    private void updateParentSpinnerSelection() {
+        if (selectedCategory.getParentId() == null || selectedCategory.getParentId().isEmpty()) {
+            spParentCategory.setSelection(0);
+        } else {
+            for (int i = 0; i < parentCategoryList.size(); i++) {
+                if (parentCategoryList.get(i).getId().equals(selectedCategory.getParentId())) {
+                    spParentCategory.setSelection(i + 1);
+                    break;
+                }
+            }
+        }
     }
 
     private void enterEditMode(Category category) {
@@ -188,6 +290,8 @@ public class AddCategoryActivity extends AppCompatActivity {
         
         etCategoryName.setText(category.getName());
         etCategoryImage.setText(category.getImageUrl());
+        updateParentSpinnerSelection();
+        
         selectedImageUri = null;
         if (!TextUtils.isEmpty(category.getImageUrl())) {
             Glide.with(this)
@@ -207,6 +311,7 @@ public class AddCategoryActivity extends AppCompatActivity {
         
         etCategoryName.setText("");
         etCategoryImage.setText("");
+        spParentCategory.setSelection(0);
         ivPreview.setImageResource(R.drawable.ic_ball);
     }
 
@@ -241,6 +346,8 @@ public class AddCategoryActivity extends AppCompatActivity {
 
         String name = etCategoryName.getText().toString().trim();
         String imageUrl = etCategoryImage.getText().toString().trim();
+        int parentPos = spParentCategory.getSelectedItemPosition();
+        String parentId = (parentPos > 0) ? parentCategoryList.get(parentPos - 1).getId() : null;
 
         if (TextUtils.isEmpty(name)) {
             Toast.makeText(this, "Vui lòng nhập tên danh mục", Toast.LENGTH_SHORT).show();
@@ -248,19 +355,27 @@ public class AddCategoryActivity extends AppCompatActivity {
         }
 
         if (isEditMode && selectedCategory != null) {
+            // Tránh chọn chính mình làm cha
+            if (parentId != null && parentId.equals(selectedCategory.getId())) {
+                Toast.makeText(this, "Không thể chọn chính danh mục này làm danh mục cha", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
             selectedCategory.setName(name);
             selectedCategory.setImageUrl(imageUrl);
+            selectedCategory.setParentId(parentId);
+            
             categoryDAO.updateCategory(selectedCategory).addOnSuccessListener(aVoid -> {
-                Toast.makeText(this, "Đã cập nhật danh mục trên Firebase!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Đã cập nhật danh mục!", Toast.LENGTH_SHORT).show();
                 resetForm();
                 loadCategories();
             }).addOnFailureListener(e -> {
                 Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             });
         } else {
-            Category newCat = new Category(null, name, imageUrl);
+            Category newCat = new Category(null, name, imageUrl, parentId);
             categoryDAO.addCategory(newCat).addOnSuccessListener(aVoid -> {
-                Toast.makeText(this, "Đã thêm danh mục mới vào Firebase!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Đã thêm danh mục mới!", Toast.LENGTH_SHORT).show();
                 resetForm();
                 loadCategories();
             }).addOnFailureListener(e -> {
@@ -280,7 +395,7 @@ public class AddCategoryActivity extends AppCompatActivity {
 
     private void deleteCategory(Category category) {
         categoryDAO.deleteCategory(category.getId()).addOnSuccessListener(aVoid -> {
-            Toast.makeText(this, "Đã xóa danh mục khỏi Firebase", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Đã xóa danh mục", Toast.LENGTH_SHORT).show();
             loadCategories();
         }).addOnFailureListener(e -> {
             Toast.makeText(this, "Lỗi khi xóa: " + e.getMessage(), Toast.LENGTH_SHORT).show();
