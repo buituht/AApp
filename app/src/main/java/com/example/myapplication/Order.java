@@ -12,7 +12,8 @@ public class Order implements Serializable {
     private String receiverAddress;
     private List<Product> items;
     private long totalPrice;
-    private String status; // "Đang xử lý", "Đang giao", "Đã giao"
+    private String status; // "Đang xử lý", "Đang giao", "Đã giao", "Đã hủy"
+    private String cancelReason; // Lý do hủy đơn
     private long timestamp;
 
     public Order() {
@@ -58,6 +59,9 @@ public class Order implements Serializable {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getCancelReason() { return cancelReason; }
+    public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
 
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
