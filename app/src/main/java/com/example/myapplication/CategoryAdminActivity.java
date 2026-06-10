@@ -9,7 +9,10 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CategoryAdminActivity extends AppCompatActivity implements CategoryAdapter.OnCategoryActionListener {
 
@@ -43,19 +46,66 @@ public class CategoryAdminActivity extends AppCompatActivity implements Category
     }
 
     private void loadCategories() {
-        categoryDAO.getAllCategoriesFirebase().addOnSuccessListener(queryDocumentSnapshots -> {
-            categoryList.clear();
+        categoryDAO.getAllCategories().addOnSuccessListener(queryDocumentSnapshots -> {
+            List<Category> rawList = new ArrayList<>();
             for (DocumentSnapshot doc : queryDocumentSnapshots) {
                 Category cat = doc.toObject(Category.class);
                 if (cat != null) {
                     cat.setId(doc.getId());
-                    categoryList.add(cat);
+                    rawList.add(cat);
                 }
             }
-            adapter.notifyDataSetChanged();
+            organizeCategoriesHierarchically(rawList);
         }).addOnFailureListener(e -> {
             Toast.makeText(this, "Lỗi tải danh mục: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });
+    }
+
+    private void organizeCategoriesHierarchically(List<Category> rawList) {
+        categoryList.clear();
+        Map<String, List<Category>> childrenMap = new HashMap<>();
+        List<Category> rootCategories = new ArrayList<>();
+
+        // Nhóm các danh mục theo parentId
+        for (Category cat : rawList) {
+            String pId = cat.getParentId();
+            if (pId == null || pId.isEmpty()) {
+                rootCategories.add(cat);
+            } else {
+                if (!childrenMap.containsKey(pId)) {
+                    childrenMap.put(pId, new ArrayList<>());
+                }
+                childrenMap.get(pId).add(cat);
+            }
+        }
+
+        // Sắp xếp danh mục gốc theo tên
+        Collections.sort(rootCategories, (c1, c2) -> c1.getName().compareToIgnoreCase(c2.getName()));
+
+        // Thêm vào danh sách theo cấu trúc cây (đệ quy)
+        for (Category root : rootCategories) {
+            addCategoryAndChildren(root, childrenMap);
+        }
+
+        // Đảm bảo không bỏ sót các danh mục "mồ côi" (parentId không tồn tại trong danh sách)
+        for (Category cat : rawList) {
+            if (!categoryList.contains(cat)) {
+                categoryList.add(cat);
+            }
+        }
+
+        adapter.notifyDataSetChanged();
+    }
+
+    private void addCategoryAndChildren(Category parent, Map<String, List<Category>> childrenMap) {
+        categoryList.add(parent);
+        List<Category> children = childrenMap.get(parent.getId());
+        if (children != null) {
+            Collections.sort(children, (c1, c2) -> c1.getName().compareToIgnoreCase(c2.getName()));
+            for (Category child : children) {
+                addCategoryAndChildren(child, childrenMap);
+            }
+        }
     }
 
     @Override
@@ -70,7 +120,7 @@ public class CategoryAdminActivity extends AppCompatActivity implements Category
     public void onDelete(Category category) {
         new AlertDialog.Builder(CategoryAdminActivity.this)
                 .setTitle("Xác nhận xóa")
-                .setMessage("Bạn có chắc chắn muốn xóa danh mục này?")
+                .setMessage("Bạn có chắc chắn muốn xóa danh mục '" + category.getName() + "'?")
                 .setPositiveButton("Xóa", (dialog, which) -> deleteCategory(category))
                 .setNegativeButton("Hủy", null)
                 .show();
@@ -78,7 +128,7 @@ public class CategoryAdminActivity extends AppCompatActivity implements Category
 
     private void deleteCategory(Category category) {
         categoryDAO.deleteCategory(category.getId()).addOnSuccessListener(aVoid -> {
-            Toast.makeText(this, "Đã xóa danh mục khỏi Firebase", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Đã xóa danh mục", Toast.LENGTH_SHORT).show();
             loadCategories();
         }).addOnFailureListener(e -> {
             Toast.makeText(this, "Lỗi khi xóa: " + e.getMessage(), Toast.LENGTH_SHORT).show();
